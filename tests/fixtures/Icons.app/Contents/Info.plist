@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Icons.app — a fixture AGORA application whose icon is declared the Apple way, with `CFBundleIconFile`.
+  The `.icns` it names is WRITTEN BY THE TEST (it is not committed), so this bundle carries only the
+  declaration and the suite composes the container it reads.
+-->
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.agora.icons</string>
+	<key>CFBundleName</key>
+	<string>Icons</string>
+	<key>CFBundleExecutable</key>
+	<string>Icons</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleIconFile</key>
+	<string>Icons</string>
+</dict>
+</plist>
