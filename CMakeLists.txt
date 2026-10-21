@@ -8,8 +8,9 @@
 # and it links no decoder of its own: PNG is `CGImageCreateWithPNGDataProvider`, which `libagora-drawing`
 # already has.
 #
-# THE MODEL IS APPLE'S AND NOTHING FOREIGN IS READ. An item's icon is its application's or its type's
-# generic; the generics are DRAWN rather than shipped as assets; the `.icns` reader is in-tree. See README.md.
+# THE MODEL IS APPLE'S AND NOTHING FOREIGN IS READ. An item's icon is its application's or its type's; the
+# default art is the vendored Frost theme (MIT, `themes/Frost`), the drawn generics are the fallback, and the
+# `.icns` reader is in-tree. See README.md and themes/PROVENANCE.md.
 #
 #===----------------------------------------------------------------------===#
 
@@ -48,6 +49,12 @@ set_target_properties(IconServices PROPERTIES OUTPUT_NAME agora-iconservices)
 
 target_compile_options(IconServices PRIVATE -fconstant-cfstrings)
 
+# THE VENDORED THEME'S INSTALLED LOCATION. `AGORA_ICON_THEME` overrides it at run time; this is the default
+# an installed Agora resolves, so a checkout built into a prefix and installed finds its own Frost there.
+set(AGORA_ICON_DEFAULT_THEME "${CMAKE_INSTALL_FULL_DATADIR}/icons/Frost")
+target_compile_definitions(IconServices PRIVATE
+    AGORA_ICON_DEFAULT_THEME="${AGORA_ICON_DEFAULT_THEME}")
+
 target_include_directories(IconServices
     PUBLIC
         "$<BUILD_INTERFACE:${_agora_include_dir}>"
@@ -68,6 +75,14 @@ add_subdirectory(tests)
 
 install(DIRECTORY . DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/IconServices
         FILES_MATCHING PATTERN "*.h" PATTERN "*_internal.h" EXCLUDE)
+
+# THE INTERIM DEFAULT ICON SET IS FROST, VENDORED. It installs as an ordinary freedesktop icon theme, so
+# another application that reads `share/icons` sees the same art, and this component's compiled default
+# points at it. Its licence and provenance travel with it.
+install(DIRECTORY themes/Frost DESTINATION ${CMAKE_INSTALL_DATADIR}/icons
+        PATTERN "icon-theme.cache" EXCLUDE)
+install(FILES themes/PROVENANCE.md
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/libagora-iconservices)
 install(TARGETS IconServices
     EXPORT AgoraIconServicesTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

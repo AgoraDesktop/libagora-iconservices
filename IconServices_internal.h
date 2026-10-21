@@ -49,4 +49,18 @@ CGImageRef _AGIconRasterize(CGImageRef image, size_t width, size_t height);
 IconRef _AGIconCreateForURL(CFURLRef url);
 IconRef _AGIconCreateGeneric(CFStringRef uti);
 
+/* ---------------------------------------------------------------------------------------------------
+ * the vendored theme (AGIconTheme.c)
+ * --------------------------------------------------------------------------------------------------- */
+
+/* The theme's icon for a type, +1, or NULL when the theme carries neither its MIME's name nor the generic
+ * for its category — the caller then draws. */
+IconRef _AGIconCreateWithThemeType(CFStringRef uti);
+
+/* The theme's icon for a freedesktop icon name (`folder`, `user-home`, `text-x-generic`), +1, or NULL. */
+IconRef _AGIconCreateWithThemeName(const char *name);
+
+/* Forget the per-process name cache. `AGIconReset` calls this; a change to `AGORA_ICON_THEME` also drops it. */
+void _AGIconThemeReset(void);
+
 #endif /* ICONSERVICES_INTERNAL_H */

@@ -9,9 +9,11 @@
  *   * an application's DECLARED icon is found (its `Info.plist` names a `.icns`, the reader finds the PNG
  *     representations inside it, and the pixels that come back are the ones the fixture declared);
  *   * the icon is available AT TWO SIZES and a size with no representation is scaled;
- *   * a `.txt` GETS THE GENERIC DOCUMENT ICON and a folder gets the folder generic, and the two differ;
+ *   * a text type and a folder get DIFFERENT icons, so a type really picks its own;
  *   * a badge composites over a base without changing its size;
- *   * and an override registered for a type wins.
+ *   * an override registered for a type wins;
+ *   * and the vendored Frost theme is the default: a type resolves through it at both scales, while pointing
+ *     `AGORA_ICON_THEME` at an empty directory brings the drawn generic back.
  *
  * THE FIXTURES ARE NOT BINARY FILES IN THE TREE. Two solid-colour PNGs are embedded as base64 and the test
  * composes an `.icns` container around them, so the reader is measured against a container this file built.
@@ -28,6 +30,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 /* A 32×32 solid red PNG and a 128×128 solid blue PNG, as base64. */
 static const char *kPNG32 =
@@ -189,6 +193,7 @@ int main(void)
 	CFRelease(icns);
 
 	AGIconReset();
+	setenv("AGORA_ICON_THEME", THEME_DIR, 1);
 	printf("iconservices: %s\n", root);
 	check(wrote, "the application's .icns was written into its Resources");
 
@@ -222,19 +227,19 @@ int main(void)
 	IconRef textIcon = AGIconCreateWithType(kUTTypePlainText);
 	IconRef folderIcon = AGIconCreateWithType(kUTTypeFolder);
 	IconRef imageIcon = AGIconCreateWithType(kUTTypeImage);
-	check(textIcon != NULL && folderIcon != NULL && imageIcon != NULL, "the generic icons are made");
+	check(textIcon != NULL && folderIcon != NULL && imageIcon != NULL, "the icons are made");
 	CGImageRef text64 = AGIconCopyImage(textIcon, CGSizeMake(64, 64));
-	check(text64 != NULL && CGImageGetWidth(text64) == 64, "a generic draws at the size asked");
+	check(text64 != NULL && CGImageGetWidth(text64) == 64, "an icon draws at the size asked");
 	CGImageRef folder64 = AGIconCopyImage(folderIcon, CGSizeMake(64, 64));
 	CGImageRef image64 = AGIconCopyImage(imageIcon, CGSizeMake(64, 64));
 	check(text64 != NULL && folder64 != NULL && imagesDiffer(text64, folder64),
-	      "the text and folder generics are DIFFERENT icons, not one shape");
+	      "the text and folder icons are DIFFERENT, not one shape");
 
 	/* ---- 3. a URL gets its type's generic, and a bundle its own icon --------------------- */
 	CFURLRef folderURL = fileURL(root);
 	IconRef viaURL = AGIconCreateWithURL(folderURL);
 	CGImageRef viaURL64 = viaURL != NULL ? AGIconCopyImage(viaURL, CGSizeMake(64, 64)) : NULL;
-	check(viaURL64 != NULL && !imagesDiffer(viaURL64, folder64), "a folder URL gets the folder generic");
+	check(viaURL64 != NULL && !imagesDiffer(viaURL64, folder64), "a folder URL gets the folder icon");
 
 	/* ---- 4. the badge compositor --------------------------------------------------------- */
 	IconRef badged = AGIconCreateWithBadge(app, textIcon, 0.4);
@@ -243,6 +248,65 @@ int main(void)
 	      "the badge composite keeps the base's size");
 	check(badged128 != NULL && i128 != NULL && imagesDiffer(badged128, i128),
 	      "and it differs from the unbadged icon");
+
+	/* ---- 4b. the vendored theme, and the drawing it replaces ----------------------------- */
+	check(access(THEME_DIR "/index.theme", R_OK) == 0,
+	      "the vendored Frost theme is in the checkout");
+	setenv("AGORA_ICON_THEME", THEME_DIR, 1);
+	AGIconReset();
+
+	IconRef frostFolder = AGIconCreateWithType(kUTTypeFolder);
+	CGImageRef frost32 = frostFolder != NULL ? AGIconCopyImage(frostFolder, CGSizeMake(32, 32)) : NULL;
+	CGImageRef frost512 = frostFolder != NULL ? AGIconCopyImage(frostFolder, CGSizeMake(512, 512)) : NULL;
+	check(frostFolder != NULL && frost32 != NULL && CGImageGetWidth(frost32) == 32,
+	      "a type resolves through the theme at the size asked");
+	check(frost512 != NULL && CGImageGetWidth(frost512) == 512,
+	      "and the theme's @2x representation serves a 512-pixel request");
+
+	IconRef frostPNG = AGIconCreateWithType(kUTTypePNG);
+	CGImageRef frostPNG64 = frostPNG != NULL ? AGIconCopyImage(frostPNG, CGSizeMake(64, 64)) : NULL;
+	check(frostPNG64 != NULL && !imagesDiffer(frostPNG64, image64),
+	      "a PNG gets its own theme icon, not the image generic");
+
+	/* THE THEME IS A DEFAULT AND NOT A FLOOR: point the process at a directory that carries none, and the
+	 * drawing is what a type gets. (Unsetting the variable is not enough once the compiled default is installed,
+	 * which is exactly why the test uses an empty directory.) */
+	char noThemePath[4096];
+	snprintf(noThemePath, sizeof noThemePath, "%s/no-theme", root);
+	mkdir(noThemePath, 0755);
+	setenv("AGORA_ICON_THEME", noThemePath, 1);
+	AGIconReset();
+	IconRef drawnFolder = AGIconCreateWithType(kUTTypeFolder);
+	CGImageRef drawnFolder64 = drawnFolder != NULL ? AGIconCopyImage(drawnFolder, CGSizeMake(64, 64)) : NULL;
+	CGSize drawnBest = AGIconGetBestSize(drawnFolder), themedBest = AGIconGetBestSize(frostFolder);
+	check(drawnFolder64 != NULL && folder64 != NULL && drawnBest.width == 256 && themedBest.width == 512,
+	      "an empty theme directory leaves the drawn 256-point generic, not the theme's @2x art");
+	check(drawnFolder64 != NULL && folder64 != NULL && imagesDiffer(drawnFolder64, folder64),
+	      "and its pixels are not the theme's folder");
+
+	setenv("AGORA_ICON_THEME", THEME_DIR, 1);
+	AGIconReset();
+	IconRef frostAgain = AGIconCreateWithType(kUTTypeFolder);
+	CGImageRef frostAgain64 = frostAgain != NULL ? AGIconCopyImage(frostAgain, CGSizeMake(64, 64)) : NULL;
+	check(frostAgain64 != NULL && folder64 != NULL && !imagesDiffer(frostAgain64, folder64),
+	      "and pointing at the theme again resolves the same art");
+
+	/* ---- 4c. a well-known place gets its own art ----------------------------------------- */
+	char desktopPath[4096];
+	snprintf(desktopPath, sizeof desktopPath, "%s/Desktop", root);
+	mkdir(desktopPath, 0755);
+	char savedHome[4096];
+	const char *home = getenv("HOME");
+	bool hadHome = home != NULL;
+	if (hadHome) snprintf(savedHome, sizeof savedHome, "%s", home);
+	setenv("HOME", root, 1);
+	CFURLRef desktopURL = fileURL(desktopPath);
+	IconRef desktopIcon = AGIconCreateWithURL(desktopURL);
+	CGImageRef desktop64 = desktopIcon != NULL ? AGIconCopyImage(desktopIcon, CGSizeMake(64, 64)) : NULL;
+	check(desktop64 != NULL && folder64 != NULL && imagesDiffer(desktop64, folder64),
+	      "$HOME/Desktop gets the place's `user-desktop`, not the plain folder");
+	if (hadHome) setenv("HOME", savedHome, 1); else unsetenv("HOME");
+	AGIconReset();
 
 	/* ---- 5. an override wins ------------------------------------------------------------- */
 	IconRef override = AGIconCreateWithImage(folder64);
@@ -255,6 +319,12 @@ int main(void)
 	      "and it is no longer the built-in generic");
 
 	/* ---- cleanup ------------------------------------------------------------------------- */
+	CGImageRelease(frost32); CGImageRelease(frost512); CGImageRelease(frostPNG64);
+	CGImageRelease(drawnFolder64); CGImageRelease(frostAgain64);
+	CGImageRelease(desktop64);
+	AGIconRelease(frostFolder); AGIconRelease(frostPNG); AGIconRelease(drawnFolder); AGIconRelease(frostAgain);
+	AGIconRelease(desktopIcon);
+	CFRelease(desktopURL);
 	CGImageRelease(after64); CGImageRelease(badged128); CGImageRelease(viaURL64);
 	CGImageRelease(text64); CGImageRelease(folder64); CGImageRelease(image64);
 	CGImageRelease(i32); CGImageRelease(i128); CGImageRelease(i48);

@@ -1,2 +1,5 @@
 # build/ is where artefacts go
 build/
+
+# Frost's generated lookup index — never commit it (themes/PROVENANCE.md)
+themes/Frost/icon-theme.cache

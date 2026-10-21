@@ -18,6 +18,11 @@
  * A PNG IS DECODED BY CORE GRAPHICS, not by this library: `CGImageCreateWithPNGDataProvider` already turns
  * PNG bytes into an image (`libagora-drawing`, `CGImagePNG.c`), so an application's `.icns` and any PNG
  * icon ride the drawing layer and this component links no decoder of its own.
+ *
+ * THE DEFAULT ART IS FROST. This library vendors the Frost icon theme (MIT, `themes/Frost`) and looks a type's
+ * freedesktop name up there before it draws: `image/png` is `image-png`, a folder is `folder`, and a name the
+ * theme does not carry falls back to the drawn generic. `AGORA_ICON_THEME` names another theme directory; it
+ * is read at lookup time, and a path that resolves no icon simply leaves the drawing in charge.
  */
 #ifndef ICONSERVICES_ICONSERVICES_H
 #define ICONSERVICES_ICONSERVICES_H
@@ -31,12 +36,14 @@
 typedef struct AGIcon *IconRef;
 
 /* THE ICON FOR AN ITEM. An application bundle's own icon is read from its `Info.plist`
- * (`CFBundleIconFile`); anything else falls back to the generic icon for its type, taken from Launch
- * Services. Never NULL for a URL: an item always has something to draw. */
+ * (`CFBundleIconFile`); a directory gets its place's theme icon (`user-home`, `user-desktop`, `folder`, …);
+ * anything else falls back to the icon for its type. Never NULL for a URL: an item always has something to
+ * draw. */
 IconRef AGIconCreateWithURL(CFURLRef url);
 
-/* THE GENERIC ICON FOR A TYPE, chosen by conformance — an image, a text document, a folder, an
- * application. An override registered with `AGIconRegisterIconForType` wins. */
+/* THE ICON FOR A TYPE, chosen by conformance — an image, a text document, a folder, an application. The
+ * vendored theme's icon for the type's MIME name wins; its category generic or a drawn generic is the
+ * fallback. An override registered with `AGIconRegisterIconForType` wins over both. */
 IconRef AGIconCreateWithType(CFStringRef uti);
 
 /* WRAP AN IMAGE THE CALLER ALREADY HAS. */
@@ -58,14 +65,15 @@ void AGIconRelease(IconRef icon);
 
 /* ---------------------------------------------------------------------------------------------------
  * AN AGORA-OWNED DOOR, named as Agora's and not as Apple's: Icon Services has no "replace the generic icon
- * for a type" entry point in its C API — the system's generic icons are resources. Agora ships none as
- * resources (the generics are DRAWN; see the README), so a caller that wants to substitute one says so
+ * for a type" entry point in its C API — the system's generic icons are resources. Agora's default art is
+ * Frost, vendored rather than registered, but a caller that wants to substitute one for the process says so
  * here. `uti` and `icon` are retained.
  * --------------------------------------------------------------------------------------------------- */
 void AGIconRegisterIconForType(CFStringRef uti, IconRef icon);
 
-/* Drop every registered override. Agora-owned, and the reason is the same as Launch Services': there is no
- * Icon Services daemon to manage this state, so a caller that changed it says when to forget. */
+/* Drop every registered override and the theme's per-name cache. Agora-owned, and the reason is the same as
+ * Launch Services': there is no Icon Services daemon to manage this state, so a caller that changed it says
+ * when to forget. A change to `AGORA_ICON_THEME` also drops the cache at the next lookup. */
 void AGIconReset(void);
 
 #endif /* ICONSERVICES_ICONSERVICES_H */
