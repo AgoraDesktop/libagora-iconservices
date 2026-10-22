@@ -4,7 +4,6 @@
  * Copyright © 2026 Kyle J. Cardoza.
  * SPDX-FileCopyrightText: 2026 Kyle J. Cardoza
  * SPDX-License-Identifier: LGPL-3.0-or-later
- * Portions of this file may derive from GNUstep; see THIRD-PARTY.md.
  *
  * NOT INSTALLED AND NOT PUBLIC. `AGIcon.c` owns the icon object, its raster and the badge compositor;
  * `AGIconLoader.c` owns the loaders (`.icns`, PNG), the application-icon lookup and the drawn generics. The

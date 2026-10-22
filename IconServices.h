@@ -4,7 +4,6 @@
  * Copyright © 2026 Kyle J. Cardoza.
  * SPDX-FileCopyrightText: 2026 Kyle J. Cardoza
  * SPDX-License-Identifier: LGPL-3.0-or-later
- * Portions of this file may derive from GNUstep; see THIRD-PARTY.md.
  *
  * THE MODEL IS APPLE'S (WORKSPACE-PLAN.md §2, F2). An icon is looked up for an ITEM (a URL), for a TYPE (a
  * UTI), or as a GENERIC fallback; it carries several REPRESENTATIONS at different sizes, and a caller asks

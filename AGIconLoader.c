@@ -4,7 +4,6 @@
  * Copyright © 2026 Kyle J. Cardoza.
  * SPDX-FileCopyrightText: 2026 Kyle J. Cardoza
  * SPDX-License-Identifier: LGPL-3.0-or-later
- * Portions of this file may derive from GNUstep; see THIRD-PARTY.md.
  *
  * THE MODEL IS APPLE'S. An ITEM's icon is its application's if it is an application bundle, and otherwise
  * the GENERIC icon for its type; a TYPE's generic is chosen by CONFORMANCE — an image, a text document, a

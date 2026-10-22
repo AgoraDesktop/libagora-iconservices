@@ -4,7 +4,6 @@
  * Copyright © 2026 Kyle J. Cardoza.
  * SPDX-FileCopyrightText: 2026 Kyle J. Cardoza
  * SPDX-License-Identifier: LGPL-3.0-or-later
- * Portions of this file may derive from GNUstep; see THIRD-PARTY.md.
  *
  * AN ICON IS A LIST OF REPRESENTATIONS, which is Icon Services' own shape: the same icon drawn at several
  * sizes, with the caller picking the one for the size it is about to draw. When the size asked for is not a

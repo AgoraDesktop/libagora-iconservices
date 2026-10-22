@@ -4,7 +4,6 @@
  * Copyright © 2026 Kyle J. Cardoza.
  * SPDX-FileCopyrightText: 2026 Kyle J. Cardoza
  * SPDX-License-Identifier: LGPL-3.0-or-later
- * Portions of this file may derive from GNUstep; see THIRD-PARTY.md.
  *
  * THE THEME IS FROST, AND IT IS DATA RATHER THAN A DRAWING. Apple's generic icons are resources; this tree
  * used to draw its own because it shipped no art. Agora now vendors Frost (MIT, `themes/Frost`), whose PNGs
