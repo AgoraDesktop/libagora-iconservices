@@ -1,3 +1,8 @@
+# Copyright © 2026 Kyle J. Cardoza.
+# SPDX-FileCopyrightText: 2026 Kyle J. Cardoza
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Portions of this file may derive from GNUstep; see THIRD-PARTY.md.
+
 # libagora-iconservices' own suite.
 #
 # THE APPLICATION ICON'S FIXTURES ARE BUILT AT RUN TIME, NOT COMMITTED: the test writes an `Icons.icns`
