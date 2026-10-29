@@ -224,6 +224,46 @@ int main(void)
 	CGSize best = AGIconGetBestSize(app);
 	check(best.width == 128 && best.height == 128, "the best size is the largest representation");
 
+	/* ---- 1b. A PICTURE FINER THAN THE SIZE ASKED FOR IS AVERAGED, NOT SAMPLED -----------------
+	 *
+	 * A one-pixel checkerboard reduced 8:1 has no honest single sample: nearest returns black or white and the
+	 * picture arrives with stair-stepped edges, which is exactly what an application's 512-pixel artwork looked like
+	 * at a 64-point icon. Averaging any 8x8 block of this pattern gives the SAME number everywhere — 127 — so the
+	 * tolerance below is the difference between a sampler and a picker, and it cannot pass by accident. */
+	{
+		const size_t S = 512, T = 64;
+		CGContextRef big = rasterContext(S, S);
+		unsigned char *px = CGBitmapContextGetData(big);
+		bool averaged = false;
+
+		check(big != NULL, "a texture to reduce is made");
+		if (big != NULL) {
+			for (size_t y = 0; y < S; y++) {
+				for (size_t x = 0; x < S; x++) {
+					unsigned char v = ((x + y) & 1) ? 255 : 0;
+
+					px[(y * S + x) * 4 + 0] = v;
+					px[(y * S + x) * 4 + 1] = v;
+					px[(y * S + x) * 4 + 2] = v;
+					px[(y * S + x) * 4 + 3] = 255;
+				}
+			}{
+				CGImageRef checker = CGBitmapContextCreateImage(big);
+				IconRef ref = AGIconCreateWithImage(checker);
+				CGImageRef small = AGIconCopyImage(ref, CGSizeMake((CGFloat)T, (CGFloat)T));
+
+				averaged = imageHasColour(small, 127, 127, 127, 28);
+				check(small != NULL && CGImageGetWidth(small) == T,
+				      "a 512-pixel picture asked for at 64 comes back at 64");
+				check(averaged, "and its pixels are AVERAGED (a mid grey), not one source pixel picked");
+				CGImageRelease(small);
+				AGIconRelease(ref);
+				CGImageRelease(checker);
+			}
+			CGContextRelease(big);
+		}
+	}
+
 	/* ---- 2. the generics, chosen by type ------------------------------------------------- */
 	IconRef textIcon = AGIconCreateWithType(kUTTypePlainText);
 	IconRef folderIcon = AGIconCreateWithType(kUTTypeFolder);

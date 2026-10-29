@@ -69,14 +69,54 @@ CGContextRef _AGIconCreateContext(size_t width, size_t height)
 	return ctx;
 }
 
-CGImageRef _AGIconRasterize(CGImageRef image, size_t width, size_t height)
+/* ONE PASS DOWN, WITH THE SAMPLER ON. This tree's CG defaults to `kCGInterpolationNone`, so a draw that SHRINKS a
+ * picture takes one source pixel per destination pixel and every edge that falls between them arrives stair-stepped —
+ * which is what an application's 512-pixel artwork looked like at a 64-point icon. The quality is set on the CONTEXT
+ * this function made, so no caller's state is touched. */
+static CGImageRef fn_iconDrawAt(CGImageRef image, size_t width, size_t height)
 {
-	CGContextRef ctx = _AGIconCreateContext(width, height);
+	CGContextRef ctx;
+	CGImageRef out;
+
+	if (image == NULL || width == 0 || height == 0) return NULL;
+	ctx = _AGIconCreateContext(width, height);
 	if (ctx == NULL) return NULL;
+	CGContextSetInterpolationQuality(ctx, kCGInterpolationMedium);
 	CGContextDrawImage(ctx, CGRectMake(0, 0, (CGFloat)width, (CGFloat)height), image);
-	CGImageRef out = CGBitmapContextCreateImage(ctx);
+	out = CGBitmapContextCreateImage(ctx);
 	CGContextRelease(ctx);
 	return out;
+}
+
+CGImageRef _AGIconRasterize(CGImageRef image, size_t width, size_t height)
+{
+	CGImageRef current;
+	size_t cw, ch;
+
+	if (image == NULL || width == 0 || height == 0) return NULL;
+	current = CGImageRetain(image);
+	cw = CGImageGetWidth(current);
+	ch = CGImageGetHeight(current);
+	/* **AND IT GOES DOWN IN HALVES.** One 2x2 tap across an 8:1 reduction reads four of the sixty-four source pixels
+	 * behind each destination pixel, so a fine line can vanish or double; each halving with that same tap IS a box
+	 * filter over the pixels it discards, and the chain of them is what a mipmap is. The last step is the one that
+	 * lands on the size asked for, and it is never more than 2:1. */
+	while (cw >= width * 2 && ch >= height * 2 && cw > 1 && ch > 1) {
+		CGImageRef half = fn_iconDrawAt(current, cw / 2, ch / 2);
+
+		if (half == NULL) break;
+		CGImageRelease(current);
+		current = half;
+		cw = CGImageGetWidth(current);
+		ch = CGImageGetHeight(current);
+	}
+	if (cw == width && ch == height) return current;
+	{
+		CGImageRef out = fn_iconDrawAt(current, width, height);
+
+		CGImageRelease(current);
+		return out;
+	}
 }
 
 CGImageRef _AGIconBestRepresentation(IconRef icon, CGFloat width)
