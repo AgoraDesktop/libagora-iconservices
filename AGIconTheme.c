@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>	/* `strcasecmp`: a theme prefix is matched without case */
 #include <unistd.h>
 
 #ifndef AGORA_ICON_DEFAULT_THEME
@@ -59,6 +60,7 @@ static const int kThemeSizes[] = { 16, 22, 24, 32, 48, 64, 96, 128, 256 };
 static const char *const kThemeContexts[] = { "actions", "places", "mimetypes", "apps" };
 
 typedef struct {
+	char *root;		/* WHICH theme answered: the same name is a different picture in each */
 	char *name;
 	IconRef icon;		/* NULL is a cached miss */
 } AGThemeCacheEntry;
@@ -71,6 +73,7 @@ static bool g_themeRootKnown = false;
 static void themeCacheClear(void)
 {
 	for (size_t i = 0; i < g_themeCacheCount; i++) {
+		free(g_themeCache[i].root);
 		free(g_themeCache[i].name);
 		AGIconRelease(g_themeCache[i].icon);
 	}
@@ -167,26 +170,19 @@ static IconRef loadThemeIconUncached(const char *root, const char *name)
 	return icon;
 }
 
-/* The theme's icon for `name`, +1, or NULL. The cache holds the only reference; a caller gets its own. */
-static IconRef themeIconNamed(const char *name)
+/* **A NAME IS ASKED OF A THEME, AND THE CACHE REMEMBERS WHICH ONE ANSWERED.** The same string is a different picture in
+ * each theme — `folder-open` is Frost's filled, coloured place folder and Tabler's outline symbol — so the cache key is
+ * the (theme directory, name) pair and not the name alone. */
+static IconRef themeIconFromRoot(const char *root, const char *name)
 {
 	if (!validName(name)) return NULL;
-	const char *root = themeRoot();
-	if (root == NULL) return NULL;
 
 	for (size_t i = 0; i < g_themeCacheCount; i++) {
-		if (strcmp(g_themeCache[i].name, name) == 0)
+		if (strcmp(g_themeCache[i].root, root) == 0 && strcmp(g_themeCache[i].name, name) == 0)
 			return g_themeCache[i].icon != NULL ? AGIconRetain(g_themeCache[i].icon) : NULL;
 	}
 
 	IconRef icon = loadThemeIconUncached(root, name);
-	if (icon == NULL) {
-		char sibling[AG_THEME_PATH_MAX];
-
-		if (siblingThemeRoot(root, sibling, sizeof sibling)) {
-			icon = loadThemeIconUncached(sibling, name);
-		}
-	}
 	if (g_themeCacheCount == g_themeCacheCap) {
 		size_t cap = g_themeCacheCap ? g_themeCacheCap * 2 : 64;
 		if (cap > AG_THEME_CACHE_MAX) {
@@ -198,11 +194,106 @@ static IconRef themeIconNamed(const char *name)
 		g_themeCache = grown;
 		g_themeCacheCap = cap;
 	}
+	g_themeCache[g_themeCacheCount].root = strdup(root);
 	g_themeCache[g_themeCacheCount].name = strdup(name);
-	if (g_themeCache[g_themeCacheCount].name == NULL) return icon;
+	if (g_themeCache[g_themeCacheCount].root == NULL || g_themeCache[g_themeCacheCount].name == NULL) {
+		free(g_themeCache[g_themeCacheCount].root);
+		free(g_themeCache[g_themeCacheCount].name);
+		return icon;
+	}
 	g_themeCache[g_themeCacheCount].icon = icon;
 	g_themeCacheCount++;
 	return icon != NULL ? AGIconRetain(icon) : NULL;
+}
+
+/* **A THEME BY NAME, NEXT TO THE THEME IN CHARGE.** `<prefix>:<name>` says WHICH theme to ask, and the prefix is matched
+ * against the directories beside the one `AGORA_ICON_THEME` names — `share/icons/Tabler`, `share/icons/Frost` — because
+ * that is where a desktop's themes live. Matched without case, since a person typing `tabler:` means the same directory
+ * as `Tabler`. Answers false when no directory has that name, in which case the caller treats the whole string as an
+ * ordinary name (and misses, which is the same silence a name no theme carries gets). */
+static bool themeNamedBeside(const char *root, const char *themeName, char *out, size_t cap)
+{
+	const char *slash = strrchr(root, '/');
+	char parent[AG_THEME_PATH_MAX];
+	DIR *dir;
+	struct dirent *entry;
+	bool found = false;
+
+	if (themeName == NULL || themeName[0] == '\0') return false;
+	if (slash != NULL) {
+		int written = snprintf(parent, sizeof parent, "%.*s", (int)(slash - root), root);
+		if (written <= 0 || (size_t)written >= sizeof parent) return false;
+	} else {
+		snprintf(parent, sizeof parent, ".");
+	}
+	dir = opendir(parent);
+	if (dir == NULL) return false;
+	while ((entry = readdir(dir)) != NULL) {
+		if (entry->d_name[0] == '.') continue;
+		if (strcasecmp(entry->d_name, themeName) != 0) continue;
+		if (snprintf(out, cap, "%s/%s", parent, entry->d_name) > 0) found = true;
+		break;
+	}
+	closedir(dir);
+	return found && strlen(out) > 0;
+}
+
+/* The theme in charge's icon for a name, and then its sibling's — the order a PLACE and a TYPE want, because a folder's
+ * art is the theme's own, and the order an UNPREFIXED name gets. */
+static IconRef themeIconNamed(const char *name)
+{
+	const char *root = themeRoot();
+	char sibling[AG_THEME_PATH_MAX];
+	IconRef icon;
+
+	if (root == NULL) return NULL;
+	icon = themeIconFromRoot(root, name);
+	if (icon == NULL && siblingThemeRoot(root, sibling, sizeof sibling)) {
+		icon = themeIconFromRoot(sibling, name);
+	}
+	return icon;
+}
+
+/* **`toolbar:` IS AN ALIAS FOR THE THEME THAT HOLDS THE UI'S SYMBOLS**, so a band asks for
+ * `toolbar:folder-open` and gets the outline without naming `Tabler`: the vendored set can be replaced — another theme
+ * that carries the symbols, or a person's own — without every caller changing, and a caller does not have to know which
+ * directory currently answers. It is resolved BEFORE the directory match, so `toolbar:` is never read as a directory
+ * name. */
+static const char *fn_theme_alias(const char *prefix)
+{
+	if (strcasecmp(prefix, "toolbar") == 0) {
+		return "Tabler";
+	}
+	return prefix;
+}
+
+/* **AND THE PREFIXED FORM: `tabler:folder-open`, `frost:folder-open`, `toolbar:file-plus`.** The prefix names the theme
+ * and the rest is the name in it, so a caller that means a SYMBOL says so instead of relying on an order — MEASURED,
+ * Forge's Open row drew Frost's solid place folder in a template band because `folder-open` exists in both themes and
+ * the unprefixed order answered the theme in charge first. A prefix that names no theme is not a guess: nothing answers,
+ * which is the same silence a name no theme carries gets. AN UNADORNED NAME ASKS THE THEME IN CHARGE — Frost, unless a
+ * person named another through `AGORA_ICON_THEME` — and then its sibling, which is the order a place and a type want. */
+static IconRef themeIconSpecified(const char *spec)
+{
+	const char *root = themeRoot();
+	const char *colon;
+	char themeName[AG_THEME_PATH_MAX];
+	char directory[AG_THEME_PATH_MAX];
+
+	if (root == NULL) return NULL;
+	colon = strchr(spec, ':');
+	if (colon != NULL && colon != spec && strchr(spec, '/') == NULL) {
+		size_t length = (size_t)(colon - spec);
+
+		if (length < sizeof themeName) {
+			memcpy(themeName, spec, length);
+			themeName[length] = '\0';
+			if (themeNamedBeside(root, fn_theme_alias(themeName), directory, sizeof directory)) {
+				return themeIconFromRoot(directory, colon + 1);
+			}
+		}
+	}
+	return themeIconNamed(spec);
 }
 
 /* One MIME tag as a freedesktop icon name: lower-case, '/' becomes '-', parameters are dropped, and a
@@ -276,5 +367,8 @@ IconRef AGIconCreateWithName(CFStringRef name)
 	char buffer[AG_THEME_NAME_MAX];
 	if (name == NULL) return NULL;
 	if (!CFStringGetCString(name, buffer, sizeof buffer, kCFStringEncodingUTF8)) return NULL;
-	return themeIconNamed(buffer);
+	/* `<theme>:<name>` names the theme as well as the picture — `tabler:folder-open` is the symbol theme's outline where
+	 * `folder-open` alone is the theme in charge's filled place folder — and a name with no prefix is looked up the way
+	 * a place and a type are: the theme in charge, then its sibling. */
+	return themeIconSpecified(buffer);
 }

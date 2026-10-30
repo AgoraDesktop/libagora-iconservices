@@ -58,7 +58,15 @@ IconRef AGIconCreateWithType(CFStringRef uti);
 /* **THE NAME ITSELF, WHICH IS WHAT A TOOLBAR ASKS FOR.** `AGIconCreateWithType` wants a UTI, and a caller that means
  * "the symbol called `hammer`" has no type to give. This door looks the name up in the installed themes — the one
  * `AGORA_ICON_THEME` names, then its sibling `Tabler` — and answers NULL for a name no theme carries, which leaves the
- * caller's own drawing in charge. AppKit's `+[NSImage imageNamed:]` is the caller that makes this a system resource. */
+ * caller's own drawing in charge. AppKit's `+[NSImage imageNamed:]` is the caller that makes this a system resource.
+ *
+ * **AND A NAME MAY SAY WHICH THEME IT MEANS: `toolbar:folder-open`, `tabler:folder-open`, `frost:folder-open`.** Two
+ * themes can carry one name and mean two different pictures — Frost's `folder-open` is a filled, coloured place folder and
+ * Tabler's is an outline symbol — so the prefix settles it, matched without case against the theme directories beside the
+ * one in charge. `toolbar:` is the ALIAS for the theme that holds the UI's symbols, which is what a band wants and what
+ * lets the vendored set be replaced without every caller changing; `tabler:` and `frost:` name those themes directly. A
+ * prefix that names no theme is not a guess: nothing answers, exactly as for a name no theme carries. AN UNADORNED NAME
+ * ASKS THE THEME IN CHARGE — Frost, unless `AGORA_ICON_THEME` says otherwise — and then its sibling. */
 IconRef AGIconCreateWithName(CFStringRef name);
 
 /* WRAP AN IMAGE THE CALLER ALREADY HAS. */

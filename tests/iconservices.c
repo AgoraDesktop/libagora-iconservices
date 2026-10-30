@@ -382,6 +382,41 @@ int main(void)
 		check(AGIconCreateWithName(CFSTR("places/folder")) == NULL, "and neither does one carrying a separator");
 		check(AGIconCreateWithName(CFSTR("no-such-symbol-anywhere")) == NULL,
 		      "nor one no theme carries, which leaves the caller's own drawing in charge");
+
+		/* **AND A NAME MAY SAY WHICH THEME IT MEANS, WHICH IS WHAT A TOOLBAR USES.** `folder-open` is a name BOTH themes
+		 * carry — Frost's filled, coloured place folder and Tabler's outline symbol — so the prefix settles it, and
+		 * `toolbar:` is the alias for whichever theme holds the UI's symbols. Unadorned names still ask the theme in charge
+		 * (Frost here), which is what a file view wants. MEASURED: Forge's Open row drew Frost's solid folder in a template
+		 * band until it asked `toolbar:folder-open`. */
+		{
+			IconRef bare = AGIconCreateWithName(CFSTR("folder-open"));
+			IconRef aliased = AGIconCreateWithName(CFSTR("toolbar:folder-open"));
+			IconRef named = AGIconCreateWithName(CFSTR("tabler:folder-open"));
+			IconRef caseFold = AGIconCreateWithName(CFSTR("Tabler:folder-open"));
+			CGSize aliasedSize = AGIconGetNaturalSize(aliased);
+			CGImageRef aliasPixels = aliased != NULL ? AGIconCopyImage(aliased, CGSizeMake(24, 24)) : NULL;
+			CGImageRef namedPixels = named != NULL ? AGIconCopyImage(named, CGSizeMake(24, 24)) : NULL;
+			CGImageRef barePixels = bare != NULL ? AGIconCopyImage(bare, CGSizeMake(24, 24)) : NULL;
+
+			check(bare != NULL && AGIconGetNaturalSize(bare).width != aliasedSize.width,
+			      "a BARE name is the theme in charge's picture, which is not the symbol theme's");
+			check(aliased != NULL && aliasedSize.width == 24.0 && aliasedSize.height == 24.0,
+			      "`toolbar:` answers the SYMBOL theme's 24-pixel outline");
+			check(aliasPixels != NULL && namedPixels != NULL && !imagesDiffer(aliasPixels, namedPixels),
+			      "and it is the same picture `tabler:` names, because the alias IS that theme");
+			check(caseFold != NULL, "a theme prefix is matched without case");
+			check(aliasPixels != NULL && barePixels != NULL && imagesDiffer(aliasPixels, barePixels),
+			      "while the bare name's painting is a different picture — the place folder, not the symbol");
+			check(AGIconCreateWithName(CFSTR("no-such-theme:folder-open")) == NULL,
+			      "and a prefix that names NO theme answers nothing, rather than guessing another theme's art");
+			if (aliasPixels != NULL) CGImageRelease(aliasPixels);
+			if (namedPixels != NULL) CGImageRelease(namedPixels);
+			if (barePixels != NULL) CGImageRelease(barePixels);
+			AGIconRelease(bare);
+			AGIconRelease(aliased);
+			AGIconRelease(named);
+			AGIconRelease(caseFold);
+		}
 	}
 
 	/* ---- 5. an override wins ------------------------------------------------------------- */
