@@ -1,4 +1,10 @@
-# Provenance — the vendored icon theme
+# Provenance — the vendored icon themes
+
+**TWO THEMES LIVE HERE, AND THEY ARE TWO KINDS OF ART.** `Frost/` is the desktop's own icon set — places, file types
+and application art, looked up by type, and the theme in charge by default. `Tabler/` is the UI's *symbols* — every
+outline Tabler publishes, pre-rendered, looked up by NAME, and asked whenever the theme in charge has no answer (see
+`Tabler/PROVENANCE.md` for its source, licence, sizes and the command that regenerates it). They install side by side
+under `share/icons`, because a desktop needs both and neither shadows the other.
 
 **The one third-party asset in this component, and the reason it is here.** Agora's generic icons used to be
 drawn by `AGIconLoader.c` because the tree shipped no art. That is still the fallback, but the interim

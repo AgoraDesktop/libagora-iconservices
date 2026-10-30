@@ -24,6 +24,14 @@
  * freedesktop name up there before it draws: `image/png` is `image-png`, a folder is `folder`, and a name the
  * theme does not carry falls back to the drawn generic. `AGORA_ICON_THEME` names another theme directory; it
  * is read at lookup time, and a path that resolves no icon simply leaves the drawing in charge.
+ *
+ * **AND THE UI'S SYMBOLS ARE A SECOND THEME, WHICH IS ASKED WHEN THE FIRST ONE MISSES.** `themes/Tabler` is every
+ * outline symbol Tabler publishes — 5,203 of them, pre-rendered at 24, 48 and 96 pixels — installed beside Frost under
+ * `share/icons`, and a name the theme in charge does not carry is looked up in its sibling `Tabler` before the answer is
+ * no. That is what makes a symbol a SYSTEM RESOURCE: `AGIconCreateWithName(CFSTR("hammer"))` — and through it AppKit's
+ * `+[NSImage imageNamed:]` — answers the vendored artwork in any application, instead of every toolbar compiling its own
+ * copy of the pictures it wants. The two themes are not merged: Frost is places, file types and application art, Tabler
+ * is the UI's verbs and switches, and the lookup keeps them apart while making both reachable.
  */
 #ifndef ICONSERVICES_ICONSERVICES_H
 #define ICONSERVICES_ICONSERVICES_H
@@ -47,6 +55,12 @@ IconRef AGIconCreateWithURL(CFURLRef url);
  * fallback. An override registered with `AGIconRegisterIconForType` wins over both. */
 IconRef AGIconCreateWithType(CFStringRef uti);
 
+/* **THE NAME ITSELF, WHICH IS WHAT A TOOLBAR ASKS FOR.** `AGIconCreateWithType` wants a UTI, and a caller that means
+ * "the symbol called `hammer`" has no type to give. This door looks the name up in the installed themes — the one
+ * `AGORA_ICON_THEME` names, then its sibling `Tabler` — and answers NULL for a name no theme carries, which leaves the
+ * caller's own drawing in charge. AppKit's `+[NSImage imageNamed:]` is the caller that makes this a system resource. */
+IconRef AGIconCreateWithName(CFStringRef name);
+
 /* WRAP AN IMAGE THE CALLER ALREADY HAS. */
 IconRef AGIconCreateWithImage(CGImageRef image);
 
@@ -60,6 +74,11 @@ CGImageRef AGIconCopyImage(IconRef icon, CGSize size);
 
 /* THE LARGEST SIZE THE ICON HAS A REPRESENTATION FOR. */
 CGSize AGIconGetBestSize(IconRef icon);
+
+/* **AND THE SMALLEST, WHICH IS THE ARTWORK'S OWN DESIGN SIZE.** A Tabler symbol is drawn on a 24-point grid and ships at
+ * 24, 48 and 96 pixels; a caller making an `NSImage` needs to know what the icon is *for* rather than how big its
+ * largest painting is. */
+CGSize AGIconGetNaturalSize(IconRef icon);
 
 IconRef AGIconRetain(IconRef icon);
 void AGIconRelease(IconRef icon);

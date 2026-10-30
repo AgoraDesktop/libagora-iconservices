@@ -52,10 +52,11 @@
 /* Every size Frost ships, at both scales. A size the theme lacks is simply a miss. */
 static const int kThemeSizes[] = { 16, 22, 24, 32, 48, 64, 96, 128, 256 };
 
-/* The contexts a name can live in. `places` carries folders, `mimetypes` carries file types, and `apps`
- * carries application art. A name is looked for in all three because the mapping is a convention and not a
- * promise: a theme may put `folder` in any of them. */
-static const char *const kThemeContexts[] = { "places", "mimetypes", "apps" };
+/* The contexts a name can live in. `places` carries folders, `mimetypes` carries file types, `apps` carries application
+ * art, and `actions` carries the UI's own symbols — the toolbar verbs and switches, which is where a vendored symbol set
+ * belongs. A name is looked for in ALL of them because the mapping is a convention and not a promise: a theme may put
+ * `folder` in any of them, and Tabler's `trash` sits in `actions` beside Frost's `places`. */
+static const char *const kThemeContexts[] = { "actions", "places", "mimetypes", "apps" };
 
 typedef struct {
 	char *name;
@@ -118,6 +119,29 @@ static CGImageRef imageAtPath(const char *path)
 	return image;
 }
 
+/* **AND A THEME'S NEIGHBOURS ARE ASKED BEFORE THE ANSWER IS NO.** `AGORA_ICON_THEME` names the theme IN CHARGE, and the
+ * art a desktop provides is not all in one directory: Frost is places, file types and application art, and Tabler is the
+ * UI's symbols — both installed under `share/icons` by this component, and both this tree's. So a name the primary theme
+ * does not carry is asked of its sibling `Tabler`, which is the whole of "Tabler beside Frost": a session that points
+ * `AGORA_ICON_THEME` at `themes/Frost` in a checkout finds `hammer` in `themes/Tabler`, and an installed one finds it in
+ * `share/icons/Tabler`. The reverse needs no rule — a theme named `Tabler` has no sibling to ask. */
+static bool siblingThemeRoot(const char *root, char *out, size_t cap)
+{
+	const char *slash = strrchr(root, '/');
+	const char *base = (slash != NULL) ? slash + 1 : root;
+	int written;
+
+	if (strcmp(base, "Tabler") == 0) {
+		return false;
+	}
+	if (slash != NULL) {
+		written = snprintf(out, cap, "%.*s/Tabler", (int)(slash - root), root);
+	} else {
+		written = snprintf(out, cap, "Tabler");
+	}
+	return written > 0 && (size_t)written < cap;
+}
+
 static IconRef loadThemeIconUncached(const char *root, const char *name)
 {
 	IconRef icon = _AGIconCreateEmpty();
@@ -156,6 +180,13 @@ static IconRef themeIconNamed(const char *name)
 	}
 
 	IconRef icon = loadThemeIconUncached(root, name);
+	if (icon == NULL) {
+		char sibling[AG_THEME_PATH_MAX];
+
+		if (siblingThemeRoot(root, sibling, sizeof sibling)) {
+			icon = loadThemeIconUncached(sibling, name);
+		}
+	}
 	if (g_themeCacheCount == g_themeCacheCap) {
 		size_t cap = g_themeCacheCap ? g_themeCacheCap * 2 : 64;
 		if (cap > AG_THEME_CACHE_MAX) {
@@ -236,4 +267,14 @@ IconRef _AGIconCreateWithThemeType(CFStringRef uti)
 IconRef _AGIconCreateWithThemeName(const char *name)
 {
 	return themeIconNamed(name);
+}
+
+/* **THE PUBLIC NAME DOOR.** A symbol's name is a name, not a type: `AGIconCreateWithType` would have to be given a UTI
+ * for "hammer" that no uniform type database has. This is the same lookup the places and types go through, exposed. */
+IconRef AGIconCreateWithName(CFStringRef name)
+{
+	char buffer[AG_THEME_NAME_MAX];
+	if (name == NULL) return NULL;
+	if (!CFStringGetCString(name, buffer, sizeof buffer, kCFStringEncodingUTF8)) return NULL;
+	return themeIconNamed(buffer);
 }

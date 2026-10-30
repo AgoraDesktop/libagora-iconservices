@@ -349,6 +349,41 @@ int main(void)
 	if (hadHome) setenv("HOME", savedHome, 1); else unsetenv("HOME");
 	AGIconReset();
 
+	/* ---- 4d. **A SYMBOL IS ASKED FOR BY NAME, AND IT LIVES IN THE THEME BESIDE THIS ONE.** Frost is places, file
+	 * types and application art; the UI's symbols are Tabler, installed as its own theme. `AGORA_ICON_THEME` here names
+	 * Frost, so `hammer` can only be answered by the SIBLING lookup — which is the whole of "Tabler beside Frost", and
+	 * what makes `[NSImage imageNamed:@"hammer"]` a system resource rather than nine tables compiled into one program. */
+	{
+		IconRef symbol = AGIconCreateWithName(CFSTR("hammer"));
+		CGSize natural = AGIconGetNaturalSize(symbol);
+		CGSize best = AGIconGetBestSize(symbol);
+		CGImageRef at24 = symbol != NULL ? AGIconCopyImage(symbol, CGSizeMake(24, 24)) : NULL;
+
+		check(symbol != NULL, "a symbol is found BY NAME, in the theme beside the one in charge");
+		check(natural.width == 24 && natural.height == 24,
+		      "and its natural size is the 24-point grid a Tabler symbol is drawn on");
+		check(best.width == 96 && best.height == 96, "while its best painting is the 96-pixel one");
+		check(at24 != NULL && CGImageGetWidth(at24) == 24 && CGImageGetHeight(at24) == 24,
+		      "and the 24-pixel representation comes back at 24x24");
+		if (at24 != NULL) CGImageRelease(at24);
+		AGIconRelease(symbol);
+
+		/* A NAME THE THEME IN CHARGE CARRIES IS STILL FOUND IN IT FIRST, so the fallback adds nothing to the cost of
+		 * the ordinary lookups: `folder` is Frost's, and `user-desktop` is a place. */
+		IconRef place = AGIconCreateWithName(CFSTR("user-desktop"));
+		CGSize placeNatural = AGIconGetNaturalSize(place);
+
+		check(place != NULL && placeNatural.width > 0,
+		      "and a name the theme IN CHARGE carries is answered from it, not from the sibling");
+		AGIconRelease(place);
+
+		/* **AND A NAME IS A NAME, NOT A PATH.** The lookup refuses anything that could leave the theme directory. */
+		check(AGIconCreateWithName(CFSTR("../../etc/passwd")) == NULL, "a name that walks upwards resolves nothing");
+		check(AGIconCreateWithName(CFSTR("places/folder")) == NULL, "and neither does one carrying a separator");
+		check(AGIconCreateWithName(CFSTR("no-such-symbol-anywhere")) == NULL,
+		      "nor one no theme carries, which leaves the caller's own drawing in charge");
+	}
+
 	/* ---- 5. an override wins ------------------------------------------------------------- */
 	IconRef override = AGIconCreateWithImage(folder64);
 	AGIconRegisterIconForType(kUTTypePlainText, override);

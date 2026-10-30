@@ -157,6 +157,24 @@ CGSize AGIconGetBestSize(IconRef icon)
 	return size;
 }
 
+/* **AND THE SMALLEST, WHICH IS THE SIZE THE ARTWORK WAS DRAWN FOR.** A caller making an image out of an icon needs two
+ * numbers: how big the thing should be ON THE SCREEN (the smallest painting — a Tabler symbol is designed on a 24-point
+ * grid) and the sharpest painting to draw it from (`AGIconGetBestSize`). The theme ships 24, 48 and 96 for exactly that
+ * reason, and an icon with one representation answers the same size twice. */
+CGSize AGIconGetNaturalSize(IconRef icon)
+{
+	CGSize size = CGSizeMake(0, 0);
+	if (icon == NULL) return size;
+	for (size_t i = 0; i < icon->count; i++) {
+		CGFloat w = (CGFloat)CGImageGetWidth(icon->reps[i]);
+		if (w > 0.0 && (size.width <= 0.0 || w < size.width)) {
+			size.width = w;
+			size.height = (CGFloat)CGImageGetHeight(icon->reps[i]);
+		}
+	}
+	return size;
+}
+
 CGImageRef AGIconCopyImage(IconRef icon, CGSize size)
 {
 	if (icon == NULL) return NULL;

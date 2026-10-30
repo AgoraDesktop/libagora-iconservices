@@ -100,6 +100,14 @@ install(DIRECTORY . DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/IconServices
 # points at it. Its licence and provenance travel with it.
 install(DIRECTORY themes/Frost DESTINATION ${CMAKE_INSTALL_DATADIR}/icons
         PATTERN "icon-theme.cache" EXCLUDE)
+
+# **AND THE UI'S SYMBOLS BESIDE IT.** Tabler is the other half of this tree's art — 5,203 outline symbols rendered at 24,
+# 48 and 96 pixels — and it installs the same way, as an ordinary theme in `share/icons`, so the lookup that names
+# `user-home` in Frost names `hammer` here. `source/` holds the SVGs the pixels came from and is NOT installed: the
+# pictures are what a running system needs, and a copy of every SVG on the disk would double a theme for the sake of a
+# regeneration nobody does there.
+install(DIRECTORY themes/Tabler DESTINATION ${CMAKE_INSTALL_DATADIR}/icons
+        PATTERN "source" EXCLUDE)
 install(FILES themes/PROVENANCE.md
         DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/libagora-iconservices)
 install(TARGETS IconServices
