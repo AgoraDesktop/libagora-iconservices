@@ -24,11 +24,13 @@
  */
 #include "IconServices_internal.h"
 
+#include <LaunchServices/LSInfo.h>
 #include <LaunchServices/UTType.h>
 
 #include <CoreGraphics/CGBitmapContext.h>
 #include <CoreGraphics/CGColor.h>
 #include <CoreGraphics/CGDataProvider.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -144,54 +146,189 @@ static IconRef iconFromICNSData(CFDataRef data)
 /* ============================================================================================ *
  * AN APPLICATION'S OWN ICON                                                                           *
  * ============================================================================================ */
-static IconRef iconForApplication(CFURLRef appURL)
+/* **A BUNDLE'S ICON IS THE BUNDLE'S, AND THE SEARCH FOR IT IS WHAT "ALWAYS" MEANS.** A bundle names its picture in
+ * `CFBundleIconFile` and this used to stop there: a bundle whose manifest named nothing — or named a file the build did
+ * not ship — answered NULL and the caller drew the theme's generic application glyph. MEASURED as "Workspace does not
+ * recognise .app bundles in the trash", where the trashed copy is an OLDER BUILD with no `Contents/Resources` at all.
+ *
+ * So the search is four passes, cheapest first:
+ *
+ *   1. `CFBundleIconFile`, with `.icns` and `.png` tried when the name carries no extension.
+ *   2. The CONVENTIONAL names — `CFBundleName`, `CFBundleExecutable`, `icon`, `AppIcon` — against the same resources.
+ *   3. The one picture a bundle that is not following the convention still ships: the first `.icns` in
+ *      `Contents/Resources`, and failing that the first `.png`.
+ *   4. **The APPLICATION, BY IDENTIFIER.** A copy that has been trashed or moved is still that application: Launch
+ *      Services names its installed copies, and the first one that is not this bundle and does carry an icon answers.
+ *      ONE hop only — the recursive call passes `false` — so two bundles that pointed at each other cannot recurse.
+ */
+static IconRef iconFromFileAtPath(const char *full)
+{
+	CFStringRef fs = CFStringCreateWithCString(NULL, full, kCFStringEncodingUTF8);
+	CFURLRef url;
+	CFDataRef data;
+	IconRef result = NULL;
+
+	if (fs == NULL) return NULL;
+	url = CFURLCreateWithFileSystemPath(NULL, fs, kCFURLPOSIXPathStyle, false);
+	CFRelease(fs);
+	if (url == NULL) return NULL;
+	data = dataFromFile(url);
+	CFRelease(url);
+	if (data == NULL) return NULL;
+	{
+		const unsigned char *bytes = CFDataGetBytePtr(data);
+		size_t length = (size_t)CFDataGetLength(data);
+
+		if (length >= 8 && memcmp(bytes, "icns", 4) == 0) {
+			result = iconFromICNSData(data);
+		} else if (isPNG(bytes, length)) {
+			CGImageRef image = imageFromPNGData(data);
+
+			if (image != NULL) {
+				result = AGIconCreateWithImage(image);
+				CGImageRelease(image);
+			}
+		}
+	}
+	CFRelease(data);
+	return result;
+}
+
+/* A name against `Contents/Resources`: the name as given when it carries an extension, otherwise both forms. */
+static IconRef iconNamedInBundle(const char *basec, const char *name)
+{
+	char candidates[2][600];
+	int count = 0;
+
+	if (name == NULL || name[0] == '\0') return NULL;
+	if (strchr(name, '.') != NULL) {
+		snprintf(candidates[count++], sizeof candidates[0], "%s", name);
+	} else {
+		snprintf(candidates[count++], sizeof candidates[0], "%s.icns", name);
+		snprintf(candidates[count++], sizeof candidates[0], "%s.png", name);
+	}
+	for (int i = 0; i < count; i++) {
+		char full[4096];
+		IconRef icon;
+
+		snprintf(full, sizeof full, "%s/Contents/Resources/%s", basec, candidates[i]);
+		icon = iconFromFileAtPath(full);
+		if (icon != NULL) return icon;
+	}
+	return NULL;
+}
+
+/* **THE ONE PICTURE A BUNDLE STILL SHIPS.** `Contents/Resources` read once, `.icns` preferred over `.png` — a bundle
+ * that carries one picture means it, whatever it called it. */
+static IconRef iconAnyInBundle(const char *basec)
+{
+	char directory[4096];
+	DIR *dir;
+	struct dirent *entry;
+	IconRef result = NULL;
+
+	snprintf(directory, sizeof directory, "%s/Contents/Resources", basec);
+	dir = opendir(directory);
+	if (dir == NULL) return NULL;
+	for (int pass = 0; pass < 2 && result == NULL; pass++) {
+		const char *want = (pass == 0) ? ".icns" : ".png";
+
+		rewinddir(dir);
+		while ((entry = readdir(dir)) != NULL) {
+			size_t length = strlen(entry->d_name);
+			size_t suffix = strlen(want);
+			char full[4096];
+
+			if (length <= suffix || strcmp(entry->d_name + (length - suffix), want) != 0) {
+				continue;
+			}
+			snprintf(full, sizeof full, "%s/%s", directory, entry->d_name);
+			result = iconFromFileAtPath(full);
+			if (result != NULL) break;
+		}
+	}
+	closedir(dir);
+	return result;
+}
+
+static IconRef iconForApplicationAt(CFURLRef appURL, bool allowIdentifierLookup)
 {
 	CFDictionaryRef info = CFBundleCopyInfoDictionaryForURL(appURL);
-	if (info == NULL) return NULL;
-	CFTypeRef v = CFDictionaryGetValue(info, CFSTR("CFBundleIconFile"));
-	CFStringRef name = (v != NULL && CFGetTypeID(v) == CFStringGetTypeID()) ? (CFStringRef)CFRetain(v) : NULL;
-	CFRelease(info);
-	if (name == NULL) return NULL;
-
-	char namec[512];
-	CFStringGetCString(name, namec, sizeof namec, kCFStringEncodingUTF8);
-	CFRelease(name);
-
-	char candidates[2][600];
-	int nc = 0;
-	if (strchr(namec, '.') != NULL) snprintf(candidates[nc++], sizeof candidates[0], "%s", namec);
-	else {
-		snprintf(candidates[nc++], sizeof candidates[0], "%s.icns", namec);
-		snprintf(candidates[nc++], sizeof candidates[0], "%s.png", namec);
-	}
-
 	CFStringRef base = CFURLCopyFileSystemPath(appURL, kCFURLPOSIXPathStyle);
-	if (base == NULL) return NULL;
 	char basec[4096];
+	IconRef result = NULL;
+
+	if (base == NULL) {
+		if (info != NULL) CFRelease(info);
+		return NULL;
+	}
 	CFStringGetCString(base, basec, sizeof basec, kCFStringEncodingUTF8);
 	CFRelease(base);
 
-	IconRef result = NULL;
-	for (int i = 0; i < nc && result == NULL; i++) {
-		char full[4096];
-		snprintf(full, sizeof full, "%s/Contents/Resources/%s", basec, candidates[i]);
-		CFStringRef fs = CFStringCreateWithCString(NULL, full, kCFStringEncodingUTF8);
-		CFURLRef u = CFURLCreateWithFileSystemPath(NULL, fs, kCFURLPOSIXPathStyle, false);
-		CFRelease(fs);
-		CFDataRef data = dataFromFile(u);
-		CFRelease(u);
-		if (data == NULL) continue;
-		const unsigned char *b = CFDataGetBytePtr(data);
-		size_t n = (size_t)CFDataGetLength(data);
-		if (n >= 8 && memcmp(b, "icns", 4) == 0) {
-			result = iconFromICNSData(data);
-		} else if (isPNG(b, n)) {
-			CGImageRef image = imageFromPNGData(data);
-			if (image != NULL) { result = AGIconCreateWithImage(image); CGImageRelease(image); }
+	if (info != NULL) {
+		static const CFStringRef keys[2] = { CFSTR("CFBundleIconFile"), CFSTR("CFBundleName") };
+
+		for (int pass = 0; pass < 4 && result == NULL; pass++) {
+			CFTypeRef value = NULL;
+			char name[512];
+
+			if (pass < 2) {
+				value = CFDictionaryGetValue(info, keys[pass]);
+			} else if (pass == 2) {
+				value = CFDictionaryGetValue(info, CFSTR("CFBundleExecutable"));
+			}
+			if (value != NULL && CFGetTypeID(value) == CFStringGetTypeID()) {
+				CFStringGetCString((CFStringRef)value, name, sizeof name, kCFStringEncodingUTF8);
+				result = iconNamedInBundle(basec, name);
+			} else if (pass == 3) {
+				result = iconNamedInBundle(basec, "icon");
+				if (result == NULL) result = iconNamedInBundle(basec, "AppIcon");
+			}
 		}
-		CFRelease(data);
+		CFRelease(info);
+	}
+	if (result == NULL) {
+		result = iconAnyInBundle(basec);
+	}
+	if (result == NULL && allowIdentifierLookup) {
+		CFDictionaryRef dictionary = CFBundleCopyInfoDictionaryForURL(appURL);
+
+		if (dictionary != NULL) {
+			CFTypeRef identifier = CFDictionaryGetValue(dictionary, CFSTR("CFBundleIdentifier"));
+
+			if (identifier != NULL && CFGetTypeID(identifier) == CFStringGetTypeID()) {
+				CFArrayRef urls = LSCopyApplicationURLsForBundleIdentifier((CFStringRef)identifier, NULL);
+
+				if (urls != NULL) {
+					CFIndex i, total = CFArrayGetCount(urls);
+
+					for (i = 0; i < total && result == NULL; i++) {
+						CFURLRef candidate = (CFURLRef)CFArrayGetValueAtIndex(urls, i);
+						CFStringRef candidatePath = CFURLCopyFileSystemPath(candidate, kCFURLPOSIXPathStyle);
+
+						if (candidatePath != NULL) {
+							char candidatec[4096];
+
+							CFStringGetCString(candidatePath, candidatec, sizeof candidatec,
+									   kCFStringEncodingUTF8);
+							if (strcmp(candidatec, basec) != 0) {
+								result = iconForApplicationAt(candidate, false);
+							}
+							CFRelease(candidatePath);
+						}
+					}
+					CFRelease(urls);
+				}
+			}
+			CFRelease(dictionary);
+		}
 	}
 	return result;
+}
+
+static IconRef iconForApplication(CFURLRef appURL)
+{
+	return iconForApplicationAt(appURL, true);
 }
 
 /* ============================================================================================ *

@@ -298,6 +298,117 @@ int main(void)
 	CGSize best = AGIconGetBestSize(app);
 	check(best.width == 128 && best.height == 128, "the best size is the largest representation");
 
+	/* ---- 1a. A BUNDLE THAT NAMES NO ICON STILL HAS ONE -------------------------------------------
+	 *
+	 * "Workspace does not recognise .app bundles in the trash" was this hole: a bundle whose manifest names nothing —
+	 * an older build, or one written by hand — answered NULL and the caller drew the theme's generic application
+	 * glyph. The search now reads the conventional names and then the one picture the bundle ships, which is what
+	 * these two cases measure: an `icon.png` nobody named, and a lone `.icns` whose name is the bundle's own. */
+	{
+		char plainPath[4096], lonePath[4096], command[4096];
+		CFURLRef url;
+		IconRef found;
+		CGImageRef pixels;
+
+		/* (a) NO CFBundleIconFile, AN UNNAMED `icon.png`. */
+		snprintf(plainPath, sizeof plainPath, "%s/Plain.app", root);
+		snprintf(command, sizeof command,
+			 "mkdir -p '%s/Contents/Resources' && printf '%%s' "
+			 "'<plist version=\"1.0\"><dict><key>CFBundleName</key><string>Plain</string></dict></plist>' "
+			 "> '%s/Contents/Info.plist'", plainPath, plainPath);
+		check(system(command) == 0, "a bundle with no CFBundleIconFile is made");
+		{
+			CGImageRef art = solidImage(64, 64, 30, 200, 120);
+			CFDataRef bytes = pngData(art);
+
+			snprintf(command, sizeof command, "%s/Plain.app/Contents/Resources/icon.png", root);
+			check(writeFile(command, bytes), "carrying an icon.png nobody named");
+			CFRelease(bytes);
+			CGImageRelease(art);
+		}
+		url = fileURL(plainPath);
+		found = AGIconCreateWithURL(url);
+		CFRelease(url);
+		pixels = found != NULL ? AGIconCopyImage(found, CGSizeMake(64, 64)) : NULL;
+		check(pixels != NULL && imageHasColour(pixels, 30, 200, 120, 8),
+		      "and the bundle's own picture is what resolves, not the generic application glyph");
+		if (pixels != NULL) CGImageRelease(pixels);
+		if (found != NULL) AGIconRelease(found);
+
+		/* (b) NO Resources NAMES AT ALL, A LONE `.icns` NAMED AFTER THE BUNDLE. */
+		snprintf(lonePath, sizeof lonePath, "%s/Lone.app", root);
+		snprintf(command, sizeof command,
+			 "mkdir -p '%s/Contents/Resources' && printf '%%s' "
+			 "'<plist version=\"1.0\"><dict><key>CFBundleName</key><string>Lone</string></dict></plist>' "
+			 "> '%s/Contents/Info.plist'", lonePath, lonePath);
+		check(system(command) == 0, "a bundle whose picture is named after it is made");
+		{
+			CGImageRef art = solidImage(128, 128, 220, 60, 60);
+			CFDataRef archive = pngData(art);
+
+			snprintf(command, sizeof command, "%s/Lone.app/Contents/Resources/Lone.icns", root);
+			/* The `.icns` reader takes a PNG-bearing container, so the picture is packed the way it reads one. */
+			check(archive != NULL, "the bundle's artwork is made");
+			if (archive != NULL) {
+				CFDataRef icns = makeICNS(archive, archive);
+
+				check(writeFile(command, icns), "packed into a .icns named after the bundle");
+				CFRelease(icns);
+				CFRelease(archive);
+			}
+			CGImageRelease(art);
+		}
+		url = fileURL(lonePath);
+		found = AGIconCreateWithURL(url);
+		CFRelease(url);
+		pixels = found != NULL ? AGIconCopyImage(found, CGSizeMake(64, 64)) : NULL;
+		check(pixels != NULL && imageHasColour(pixels, 220, 60, 60, 8),
+		      "and a lone .icns is found by the bundle's own name");
+		if (pixels != NULL) CGImageRelease(pixels);
+		if (found != NULL) AGIconRelease(found);
+		/* (c) A PICTURE WITH A NAME NEITHER THE PLIST NOR THE CONVENTION GIVES — the third pass, which reads
+		 * `Contents/Resources` and takes the one `.icns` it finds. Nothing else could answer this one. */
+		{
+			char oddPath[4096];
+
+			snprintf(oddPath, sizeof oddPath, "%s/Odd.app", root);
+			snprintf(command, sizeof command,
+				 "mkdir -p '%s/Contents/Resources' && printf '%%s' "
+				 "'<plist version=\"1.0\"><dict><key>CFBundleName</key><string>Odd</string></dict></plist>' "
+				 "> '%s/Contents/Info.plist'", oddPath, oddPath);
+			check(system(command) == 0, "a bundle whose picture is named nothing like it is made");
+			{
+				CGImageRef art = solidImage(96, 96, 90, 60, 200);
+				CFDataRef archive = pngData(art);
+
+				if (archive != NULL) {
+					CFDataRef icns = makeICNS(archive, archive);
+
+					snprintf(command, sizeof command, "%s/Odd.app/Contents/Resources/Whatever.icns", root);
+					check(writeFile(command, icns), "as CoolArt.icns, a name neither the plist nor the bundle gives");
+					CFRelease(icns);
+					CFRelease(archive);
+				}
+				CGImageRelease(art);
+			}
+			url = fileURL(oddPath);
+			found = AGIconCreateWithURL(url);
+			CFRelease(url);
+			pixels = found != NULL ? AGIconCopyImage(found, CGSizeMake(64, 64)) : NULL;
+			check(pixels != NULL && imageHasColour(pixels, 90, 60, 200, 8),
+			      "and the one picture the bundle ships is the one it means");
+			if (pixels != NULL) CGImageRelease(pixels);
+			if (found != NULL) AGIconRelease(found);
+		}
+
+		{
+			char cleanup[4096];
+
+			snprintf(cleanup, sizeof cleanup, "rm -rf '%s/Plain.app' '%s/Lone.app' '%s/Odd.app'", root, root, root);
+			(void)system(cleanup);
+		}
+	}
+
 	/* ---- 1b. A PICTURE FINER THAN THE SIZE ASKED FOR IS AVERAGED, NOT SAMPLED -----------------
 	 *
 	 * A one-pixel checkerboard reduced 8:1 has no honest single sample: nearest returns black or white and the
