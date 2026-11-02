@@ -410,11 +410,52 @@ IconRef AGIconCreateWithType(CFStringRef uti)
 	return icon;
 }
 
+/* **A TRASH IS FULL OR IT IS EMPTY, AND THE THEME HAS A PICTURE FOR EACH.** `user-trash` is the empty can and
+ * `user-trash-full` the one with papers in it — the freedesktop pair — so which one a trash directory gets is a fact
+ * about the directory, read every time the icon is asked for. The `.putback` bookkeeping directory does not count: a
+ * bin holding only its own receipts is empty. */
+static bool directoryHoldsItems(const char *path)
+{
+	DIR *dir = opendir(path);
+	struct dirent *entry;
+	bool holds = false;
+
+	if (dir == NULL) return false;
+	while ((entry = readdir(dir)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+		if (strcmp(entry->d_name, ".putback") == 0) continue;
+		holds = true;
+		break;
+	}
+	closedir(dir);
+	return holds;
+}
+
+/* Is the path a trash — the home one, or a volume's `.Trash-<uid>`? **THE NAME IS THE RULE**, the one `WSTrash` and the
+ * Dock already decide by, so a volume mounted tomorrow has a trash the moment it has the directory. */
+static bool isTrashPath(const char *path)
+{
+	const char *slash, *name;
+
+	if (path == NULL) return false;
+	slash = strrchr(path, '/');
+	name = (slash != NULL) ? slash + 1 : path;
+	return (strcmp(name, ".Trash") == 0) || (strncmp(name, ".Trash-", 7) == 0);
+}
+
 /* The theme's place icon for a directory: the well-known folders get their own art and everything else is a
  * folder. The names are the freedesktop ones and the comparison is the path the URL already resolved to. */
+static const char *placeNameAlternateForPath(const char *path, const char *primary);
+
 static const char *placeNameForPath(const char *path)
 {
 	const char *home = getenv("HOME");
+
+	/* THE TRASH FIRST, because it is the one place whose picture depends on what is INSIDE it. */
+	if (isTrashPath(path)) {
+		return directoryHoldsItems(path) ? "user-trash-full" : "user-trash";
+	}
+
 	if (path != NULL && home != NULL && home[0] != '\0') {
 		char candidate[4096];
 		if (strcmp(path, home) == 0) return "user-home";
@@ -434,6 +475,17 @@ static const char *placeNameForPath(const char *path)
 		if (strcmp(path, candidate) == 0) return "user-trash";
 	}
 	return "folder";
+}
+
+/* **A THEME MAY CARRY ONE OF THE PAIR AND NOT THE OTHER.** `user-trash` is in every theme that has a bin at all;
+ * `user-trash-full` is rarer. A trash that cannot be drawn full is drawn as a bin rather than as a folder. */
+static const char *placeNameAlternateForPath(const char *path, const char *primary)
+{
+	if (primary != NULL && strcmp(primary, "user-trash-full") == 0) {
+		(void)path;
+		return "user-trash";
+	}
+	return NULL;
 }
 
 IconRef _AGIconCreateGeneric(CFStringRef uti) { return AGIconCreateWithType(uti); }
@@ -460,7 +512,13 @@ IconRef _AGIconCreateForURL(CFURLRef url)
 		return AGIconCreateWithType(kUTTypeApplicationBundle);
 	}
 	if (isDir) {
-		IconRef placed = _AGIconCreateWithThemeName(placeNameForPath(hasPath ? path : NULL));
+		const char *name = placeNameForPath(hasPath ? path : NULL);
+		const char *alternate = placeNameAlternateForPath(hasPath ? path : NULL, name);
+		IconRef placed = _AGIconCreateWithThemeName(name);
+
+		if (placed == NULL && alternate != NULL) {
+			placed = _AGIconCreateWithThemeName(alternate);
+		}
 		if (placed != NULL) return placed;
 		return AGIconCreateWithType(kUTTypeFolder);
 	}

@@ -511,6 +511,17 @@ int main(void)
 
 			check(writeThemeImage(themePath, "48x48/places", "user-desktop", place),
 			      "a place is one of its names");
+			{
+				CGImageRef emptyCan = solidImage(48, 48, 120, 220, 140);
+				CGImageRef fullCan = solidImage(48, 48, 30, 60, 210);
+
+				check(writeThemeImage(themePath, "48x48/places", "user-trash", emptyCan),
+				      "a trash is one of its names");
+				check(writeThemeImage(themePath, "48x48/places", "user-trash-full", fullCan),
+				      "and a full trash is another");
+				CGImageRelease(emptyCan);
+				CGImageRelease(fullCan);
+			}
 			check(writeThemeImage(themePath, "48x48/places", "folder-open", open),
 			      "and so is a folder-open, drawn unlike the symbol theme's");
 			CGImageRelease(place);
@@ -575,6 +586,51 @@ int main(void)
 	check(themeAgain64 != NULL && folder64 != NULL
 	      && imageHasColour(themeAgain64, 60, 90, 210, 8),
 	      "and pointing at the theme again resolves the same art");
+
+	/* ---- 1a-bis. A TRASH IS FULL OR EMPTY, AND EACH HAS ITS PICTURE -------------------------------
+	 *
+	 * `user-trash` is the empty can and `user-trash-full` the one with papers in it. Which one a trash directory gets
+	 * is a fact about what is INSIDE it, read when the icon is asked for — a bin holding only its own `.putback`
+	 * receipts is empty, which is what the first case checks. */
+	{
+		char trashHome[4096], trashPath[4096], command[4096];
+		char savedHome[4096];
+		const char *home = getenv("HOME");
+		bool hadHome = (home != NULL);
+		CFURLRef url;
+		IconRef icon;
+		CGImageRef pixels;
+
+		if (hadHome) snprintf(savedHome, sizeof savedHome, "%s", home);
+		snprintf(trashHome, sizeof trashHome, "%s/trashhome", root);
+		snprintf(trashPath, sizeof trashPath, "%s/.Trash", trashHome);
+		snprintf(command, sizeof command, "mkdir -p '%s/.putback'", trashPath);
+		check(system(command) == 0, "an empty trash is made, holding nothing but its Put Back records");
+		setenv("HOME", trashHome, 1);
+
+		url = fileURL(trashPath);
+		icon = AGIconCreateWithURL(url);
+		CFRelease(url);
+		pixels = icon != NULL ? AGIconCopyImage(icon, CGSizeMake(48, 48)) : NULL;
+		check(pixels != NULL && imageHasColour(pixels, 120, 220, 140, 8),
+		      "an EMPTY trash gets the empty can — and .putback does not make it full");
+		if (pixels != NULL) CGImageRelease(pixels);
+		if (icon != NULL) AGIconRelease(icon);
+
+		snprintf(command, sizeof command, "touch '%s/thing.txt'", trashPath);
+		check(system(command) == 0, "something is thrown away");
+		url = fileURL(trashPath);
+		icon = AGIconCreateWithURL(url);
+		CFRelease(url);
+		pixels = icon != NULL ? AGIconCopyImage(icon, CGSizeMake(48, 48)) : NULL;
+		check(pixels != NULL && imageHasColour(pixels, 30, 60, 210, 8),
+		      "and a FULL one gets the can with papers in it");
+		if (pixels != NULL) CGImageRelease(pixels);
+		if (icon != NULL) AGIconRelease(icon);
+
+		if (hadHome) setenv("HOME", savedHome, 1); else unsetenv("HOME");
+	}
+
 
 	/* ---- 4c. a well-known place gets its own art ----------------------------------------- */
 	char desktopPath[4096];
