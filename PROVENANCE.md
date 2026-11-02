@@ -9,7 +9,7 @@ Tabler's, and its licence and revision are recorded in its own provenance rather
 | the guide | Apple's Icon Services model — an `IconRef` looked up for an item or a type, carrying several sized representations, with a badge compositor |
 | the PNG decoder | **not this component's**: `CGImageCreateWithPNGDataProvider` in `libagora-drawing` (`CGImagePNG.c`), which links libpng |
 | the `.icns` reader | **in-tree** (`AGIconLoader.c`), for the PNG-bearing entries |
-| the default theme | **Flat-Remix-Accent**, rendered per machine by `demo/flat-remix-accent.sh` (GPL-3.0) — named, never vendored |
+| the default theme | **Flat-Remix-Accent** (GPL-3.0), re-coloured and pre-rendered — vendored, installed, and the compiled default |
 | the vendored art | **Tabler**, MIT — see [`themes/Tabler/PROVENANCE.md`](themes/Tabler/PROVENANCE.md) |
 | third-party code | **none**; the theme is data, not linked code |
 | licence | MIT, per file (`LICENSE`), with Tabler's own `LICENSE` beside its art |
@@ -33,11 +33,11 @@ image, text, movie, audio and archive generics are what a missing theme, a missi
 `AGORA_ICON_THEME` falls back to — which includes every machine that has not run `demo/flat-remix-accent.sh`. They are
 still at 256 points, deterministic and reviewable.
 
-**The default theme is not vendored any more, and that is a licence decision.** Flat-Remix is GPL-3.0: its sources and
-the PNGs rendered from them are produced per machine by `demo/flat-remix-accent.sh`, and the compiled default names the
-directory that script writes. What this component commits is `Tabler` alone — MIT, and the UI's symbols rather than a
-desktop's places art. The theme this component used to vendor, Frost (MIT v0.3.1), was removed with its install rule;
-`themes/PROVENANCE.md` records what it was and why nothing replaces it in the tree.
+**The default theme is vendored, and the licence allows it.** Flat-Remix is GPL-3.0 and this component is
+GPL-3.0-or-later, so the terms compose: the rendered PNGs are committed and installed, and `demo/flat-remix-accent.sh`
+stays as the recipe that reproduces them. The theme this component used to vendor, Frost (MIT v0.3.1), was removed with
+its install rule; `themes/Flat-Remix-Accent/PROVENANCE.md` records its replacement and `themes/PROVENANCE.md` what Frost
+was.
 
 **The `.icns` reader is partial, and says so.** The PNG-bearing entries are read and identified by the PNG
 signature rather than a type table; the legacy RLE/ARGB entries are not read yet. This is recorded in

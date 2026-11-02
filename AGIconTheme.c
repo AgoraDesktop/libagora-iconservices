@@ -5,11 +5,11 @@
  * SPDX-FileCopyrightText: 2026 Kyle J. Cardoza
  * SPDX-License-Identifier: LGPL-3.0-or-later
  *
- * A THEME IS DATA RATHER THAN A DRAWING, AND THE DEFAULT ONE IS NAMED. Apple's generic icons are resources; this tree
- * used to draw its own because it shipped no art. The default now names `share/icons/Flat-Remix-Accent` — rendered per
- * machine by `demo/flat-remix-accent.sh`, and GPL-3.0, so it is not committed here. Its PNGs are looked up here, and the
- * drawn generics in `AGIconLoader.c` remain the fallback for a machine without that theme, a name the theme does not
- * carry, or a process that points `AGORA_ICON_THEME` somewhere empty.
+ * A THEME IS DATA RATHER THAN A DRAWING, AND THE DEFAULT ONE IS VENDORED. Apple's generic icons are resources; this tree
+ * used to draw its own because it shipped no art. The default now names `share/icons/Flat-Remix-Accent` — Flat-Remix with
+ * its folders in the accent, rendered by `demo/flat-remix-accent.sh` and committed as its PNGs (GPL-3.0, like this
+ * component). Its art is looked up here, and the drawn generics in `AGIconLoader.c` remain the fallback for a name the
+ * theme does not carry or a process that points `AGORA_ICON_THEME` somewhere empty.
  *
  * WHERE A THEME IS FOUND. `AGORA_ICON_THEME` names a directory, which is what a test or a caller that wants
  * another theme sets; otherwise `AGORA_ICON_DEFAULT_THEME`, which this component's build points at

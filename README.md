@@ -32,17 +32,18 @@ $ readelf -d build/libagora-iconservices.so | grep NEEDED
 **generic**; it carries several **representations** at different sizes and a caller asks for the one for the
 size it is about to draw.
 
-## The default icon set: Flat-Remix-Accent, rendered rather than vendored
+## The default icon set: Flat-Remix-Accent
 
 **Agora's default art is Flat-Remix**, in the accent-tinted variant `demo/flat-remix-accent.sh` renders from the
 upstream checkout: folders, file types and the places icons a file manager asks for, with the folder tones swapped to
-`NSColor`'s `+cg_accentColor`. It is **GPL-3.0**, so neither its sources nor the PNGs rendered from them are committed
-or installed by this component — the compiled default (`AGORA_ICON_DEFAULT_THEME`) simply NAMES
-`share/icons/Flat-Remix-Accent`, and a machine without it gets the drawn generics in `AGIconLoader.c`.
+`NSColor`'s `+cg_accentColor`. It is **GPL-3.0** — as this component is — and it is vendored at
+`themes/Flat-Remix-Accent` as its rendered PNGs (nine sizes, both scales, `places` and `mimetypes`), installed to
+`share/icons`, and named by the compiled default (`AGORA_ICON_DEFAULT_THEME`). `themes/Flat-Remix-Accent/PROVENANCE.md`
+records the source, the two colour substitutions and the command that regenerates it.
 
-The theme this component used to vendor — Frost (MIT, v0.3.1) — is gone, along with its 41 MB of PNGs. `themes/` now
-holds one theme, `Tabler`, the UI's outline symbols, which installs beside whatever theme is in charge and answers a name
-that theme does not carry.
+The theme this component used to vendor — Frost (MIT, v0.3.1) — is gone, along with its 41 MB of PNGs. `themes/` holds
+two themes now: this one, and `Tabler`, the UI's outline symbols, which installs beside it and answers a name it does not
+carry.
 
 A type's name is its preferred MIME tag with `/` turned into `-` (`image/png` → `image-png`); a type with no
 MIME tag falls back to the generic for its category (`text-x-generic`, `folder`, `application-x-executable`).
@@ -103,11 +104,11 @@ cmake -S . -B build -DCMAKE_C_COMPILER=/usr/bin/clang-19 \
       -DCMAKE_PREFIX_PATH=../build-prefix -DCMAKE_INSTALL_PREFIX=../build-prefix
 cmake --build build
 cd build && ctest --output-on-failure
-cmake --install .      # installs share/icons/Tabler, the one theme this component ships
+cmake --install .      # installs share/icons/Flat-Remix-Accent and share/icons/Tabler
 ```
 
 `AGORA_ICON_THEME=/path/to/ATheme` overrides the installed default at run time; without it the compiled default names
-`share/icons/Flat-Remix-Accent`, which `demo/flat-remix-accent.sh` renders into the prefix. **The suite needs neither**:
+`share/icons/Flat-Remix-Accent`, which this component installs. **The suite needs neither**:
 it composes a small theme of its own — an `index.theme` and a few flat-coloured PNGs, with the checkout's `Tabler`
 linked beside it — so what it measures is the lookup rather than anybody's art.
 

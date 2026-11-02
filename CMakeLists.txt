@@ -63,14 +63,11 @@ set_target_properties(IconServices PROPERTIES OUTPUT_NAME agora-iconservices)
 
 target_compile_options(IconServices PRIVATE -fconstant-cfstrings)
 
-# **THE DEFAULT THEME, AND THE ONE THIS COMPONENT DOES NOT OWN.** `AGORA_ICON_THEME` overrides it at run time; this is
-# what an installed Agora resolves otherwise, and it names FLAT-REMIX-ACCENT — the theme `demo/flat-remix-accent.sh`
-# renders into the prefix from the user's own Flat-Remix checkout, with its folders in `+cg_accentColor`.
-#
-# It is GPL-3, so neither its sources nor the pixels rendered from them are committed or installed BY THIS BUILD: the
-# default names a theme that has to be rendered locally (or dropped in by hand). A machine without it resolves no theme
-# icon and falls back to the drawn generics in `AGIconLoader.c`, which is the same answer a checkout with no theme has
-# always had. The pointer's theme, the AppKit's chrome and Tabler's symbols are unaffected: those are installed.
+# **THE DEFAULT THEME.** `AGORA_ICON_THEME` overrides it at run time; this is what an installed Agora resolves
+# otherwise, and it names FLAT-REMIX-ACCENT — Flat-Remix with its folders in `+cg_accentColor`, rendered by
+# `demo/flat-remix-accent.sh` and VENDORED here as its PNGs. It is GPL-3.0, which is this component's own licence
+# (GPL-3.0-or-later), so the terms compose; see `themes/Flat-Remix-Accent/PROVENANCE.md` for what was rendered and the
+# two colour substitutions that make it Agora's.
 set(AGORA_ICON_DEFAULT_THEME "${CMAKE_INSTALL_FULL_DATADIR}/icons/Flat-Remix-Accent")
 target_compile_definitions(IconServices PRIVATE
     AGORA_ICON_DEFAULT_THEME="${AGORA_ICON_DEFAULT_THEME}")
@@ -109,9 +106,12 @@ install(DIRECTORY . DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/IconServices
 # is NOT installed: the pictures are what a running system needs, and a copy of every SVG on the disk would double a
 # theme for the sake of a regeneration nobody does there.
 #
-# **NO PLACES OR FILE-TYPE ART IS VENDORED ANY MORE.** The Frost theme this component used to carry and install was
-# replaced by the Flat-Remix the desktop now names by default; see the default above for why that one is rendered rather
-# than installed.
+# **AND THE DEFAULT THEME ITSELF: FLAT-REMIX-ACCENT, VENDORED AS ITS RENDERED PNGs.** It installs as an ordinary
+# Freedesktop theme, so another application that reads `share/icons` sees the same art, and the compiled default above
+# points at it. Nine sizes at both scales, `places` and `mimetypes` only — application art is each bundle's own and the
+# UI's symbols are Tabler. Its licence and provenance travel with it.
+install(DIRECTORY themes/Flat-Remix-Accent DESTINATION ${CMAKE_INSTALL_DATADIR}/icons
+        PATTERN "icon-theme.cache" EXCLUDE)
 install(DIRECTORY themes/Tabler DESTINATION ${CMAKE_INSTALL_DATADIR}/icons
         PATTERN "source" EXCLUDE)
 install(FILES themes/PROVENANCE.md
