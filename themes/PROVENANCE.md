@@ -1,43 +1,24 @@
-# Provenance — the vendored icon themes
+# Provenance — the vendored icon theme
 
-**TWO THEMES LIVE HERE, AND THEY ARE TWO KINDS OF ART.** `Frost/` is the desktop's own icon set — places, file types
-and application art, looked up by type, and the theme in charge by default. `Tabler/` is the UI's *symbols* — every
-outline Tabler publishes, pre-rendered, looked up by NAME, and asked whenever the theme in charge has no answer (see
-`Tabler/PROVENANCE.md` for its source, licence, sizes and the command that regenerates it). They install side by side
-under `share/icons`, because a desktop needs both and neither shadows the other.
+**ONE THEME LIVES HERE NOW: `Tabler/`, the UI's symbols.** Every outline Tabler publishes, pre-rendered and looked up by
+NAME; it is asked for a name the theme in charge does not carry, which is why it is owed as a sibling rather than merged
+into anything. Its source, licence, sizes and regenerating command are in [`Tabler/PROVENANCE.md`](Tabler/PROVENANCE.md).
 
-**The one third-party asset in this component, and the reason it is here.** Agora's generic icons used to be
-drawn by `AGIconLoader.c` because the tree shipped no art. That is still the fallback, but the interim
-**default icon set is Frost**, and Frost is vendored rather than installed by hand so a fresh checkout gets the
-same desktop.
-
-| what | where |
-|---|---|
-| the theme | **Frost — a frosted-glass icon theme for Linux**, by Sayantan (`thissayantan/frost-icon-theme`) |
-| upstream tag | **v0.3.1**, commit `84e3f8733dd20e45d9ebebc84c0eca996cbc9f4a` |
-| the artifact | the release archive `Frost-v0.3.1.tar.xz`, SHA-256 `de4b95d10e2720c36320975ec2dc25f9113155783338648f9e50837b3fcdc3d9` |
-| what is committed | the archive's `Frost/` directory, verbatim except for `icon-theme.cache` (a generated, stale index), plus the release's `LICENSE` beside the art |
-| licence | **MIT**, upstream `LICENSE` beside the art in `Frost/LICENSE` |
-| third-party code | none: an icon theme is data, and this component compiles none of it |
+**`Frost/` WAS HERE AND IS GONE.** It was the desktop's own set — places, file types and application art, looked up by
+type, and the theme in charge by default — vendored from **Frost v0.3.1** by Sayantan (MIT, archive SHA-256
+`de4b95d10e2720c36320975ec2dc25f9113155783338648f9e50837b3fcdc3d9`, commit
+`84e3f8733dd20e45d9ebebc84c0eca996cbc9f4a`). The desktop's default is now **Flat-Remix-Accent**, which is GPL-3.0 and
+is therefore rendered per machine by `demo/flat-remix-accent.sh` rather than committed: keeping 41 MB of another
+theme's places art in the tree, for a default nobody runs, was the wrong trade. This file keeps the record so the removal
+can be read for what it was.
 
 ## What was decided
 
-**THE BUILT RELEASE IS VENDORED, NOT THE SVG SOURCES.** Frost authors SVG and ships pre-rendered PNG at every
-size and both scales, because SVG filters render differently in GTK, Qt and the shell (its ADR-001). Agora has
-no SVG renderer and does not need one for this: `AGIconTheme.c` reads the PNG representations that Core
-Graphics already decodes. Vendoring the sources would add Frost's Bun/TypeScript toolchain, `resvg` and `sharp`
-to Agora's build for no user-visible gain.
+**THE COMPONENT SHIPS NO PLACES ART, AND NEEDS NONE OF ITS OWN.** A theme is data: `AGORA_ICON_DEFAULT_THEME` names a
+directory in the install prefix and the lookup reads PNGs from it. Whatever desktop art a machine runs is that machine's
+to render — the accent-tinted Flat-Remix the demo script produces, a distribution theme, or nothing, in which case the
+drawn generics in `AGIconLoader.c` answer.
 
-**IT IS AN INTERIM DEFAULT, AND IT IS A DEFAULT RATHER THAN A DEPENDENCY.** `AGORA_ICON_THEME` points the
-process at another theme; a theme that does not resolve falls back to the generics `AGIconLoader.c` draws. The
-art is MIT, so it can be redistributed with Agora — unlike the GPL/CC-BY-SA window-chrome theme the AppKit
-reads at run time and therefore does not ship.
-
-**THE CACHE FILE IS NOT COMMITTED.** `icon-theme.cache` is a generated lookup index; it is architecture- and
-revision-dependent and belongs to whichever tool builds it, not to the vendored copy.
-
-## Updating it
-
-Take the `Frost-vX.Y.Z.tar.xz` asset from the upstream release, verify the archive, unpack `Frost/` over
-`Frost/`, remove `icon-theme.cache`, copy the release's `LICENSE` to `Frost/LICENSE`, and record the new tag,
-commit and SHA-256 here. The theme's own `index.theme` carries its version in `Comment`.
+**THE BUILT RELEASE IS VENDORED, NOT THE SVG SOURCES.** For `Tabler`, the PNGs are the form this stack reads: Agora has
+no SVG renderer, and bringing one would add a renderer and an icon build toolchain for no visible gain. The generated
+`icon-theme.cache`, if any, is not committed.

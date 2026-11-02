@@ -1,17 +1,18 @@
 # Provenance
 
-**First-party code, with one third-party asset: the Frost icon theme.** The implementation files are written
+**First-party code, with one third-party asset: the Tabler symbol theme.** The implementation files are written
 for Agora, not extracted from anywhere; the PNG decoder it relies on is Core Graphics', not its own. The art is
-Frost's, and its licence and revision are recorded rather than folded into Agora's MIT.
+Tabler's, and its licence and revision are recorded in its own provenance rather than folded into Agora's MIT.
 
 | what | where |
 |---|---|
 | the guide | Apple's Icon Services model — an `IconRef` looked up for an item or a type, carrying several sized representations, with a badge compositor |
 | the PNG decoder | **not this component's**: `CGImageCreateWithPNGDataProvider` in `libagora-drawing` (`CGImagePNG.c`), which links libpng |
 | the `.icns` reader | **in-tree** (`AGIconLoader.c`), for the PNG-bearing entries |
-| the default theme | **Frost v0.3.1** by Sayantan, MIT — see [`themes/PROVENANCE.md`](themes/PROVENANCE.md) |
+| the default theme | **Flat-Remix-Accent**, rendered per machine by `demo/flat-remix-accent.sh` (GPL-3.0) — named, never vendored |
+| the vendored art | **Tabler**, MIT — see [`themes/Tabler/PROVENANCE.md`](themes/Tabler/PROVENANCE.md) |
 | third-party code | **none**; the theme is data, not linked code |
-| licence | MIT, per file (`LICENSE`), with Frost's own `LICENSE` beside its art |
+| licence | MIT, per file (`LICENSE`), with Tabler's own `LICENSE` beside its art |
 
 ## What was checked, and what was decided
 
@@ -27,16 +28,16 @@ its own and rode a link flag that already existed — the same reason `../WORKSP
 *for the drawing layer*, not for this one.
 
 **The drawn generics remain the fallback.** Apple's generic icons are resources. Agora used to draw its own
-because it shipped no art; with Frost vendored, the drawn document, folder, application, image, text, movie,
-audio and archive generics are what a missing theme, a missing name or a deliberately empty `AGORA_ICON_THEME`
-falls back to. They are still at 256 points, deterministic and reviewable, and they are no longer the default
-appearance.
+because it shipped no art; now that the default theme is a rendered one, the drawn document, folder, application,
+image, text, movie, audio and archive generics are what a missing theme, a missing name or a deliberately empty
+`AGORA_ICON_THEME` falls back to — which includes every machine that has not run `demo/flat-remix-accent.sh`. They are
+still at 256 points, deterministic and reviewable.
 
-**The vendored theme is a release artifact, not a build dependency.** Frost authors SVG and ships PNG at every
-size and both scales because SVG filters render differently across toolkits (its ADR-001). Agora has no SVG
-renderer, so committing the built PNGs is exactly the form this stack can read; bringing the SVG sources would
-bring Bun, `resvg` and `sharp` with them for no visible gain. The archive's tag, commit and SHA-256 are pinned
-in `themes/PROVENANCE.md`, and the generated `icon-theme.cache` was removed from the copy.
+**The default theme is not vendored any more, and that is a licence decision.** Flat-Remix is GPL-3.0: its sources and
+the PNGs rendered from them are produced per machine by `demo/flat-remix-accent.sh`, and the compiled default names the
+directory that script writes. What this component commits is `Tabler` alone — MIT, and the UI's symbols rather than a
+desktop's places art. The theme this component used to vendor, Frost (MIT v0.3.1), was removed with its install rule;
+`themes/PROVENANCE.md` records what it was and why nothing replaces it in the tree.
 
 **The `.icns` reader is partial, and says so.** The PNG-bearing entries are read and identified by the PNG
 signature rather than a type table; the legacy RLE/ARGB entries are not read yet. This is recorded in
@@ -44,5 +45,5 @@ signature rather than a type table; the legacy RLE/ARGB entries are not read yet
 
 ## Licence per file
 
-Every implementation file is MIT. The art under `themes/Frost/` is MIT too, under Frost's own copyright notice
-(`themes/Frost/LICENSE`); it is recorded separately because it travels separately, not because the terms differ.
+Every implementation file is MIT. The art under `themes/Tabler/` is MIT too, under Tabler's own copyright notice
+(`themes/Tabler/LICENSE`); it is recorded separately because it travels separately, not because the terms differ.

@@ -20,18 +20,20 @@
  * PNG bytes into an image (`libagora-drawing`, `CGImagePNG.c`), so an application's `.icns` and any PNG
  * icon ride the drawing layer and this component links no decoder of its own.
  *
- * THE DEFAULT ART IS FROST. This library vendors the Frost icon theme (MIT, `themes/Frost`) and looks a type's
- * freedesktop name up there before it draws: `image/png` is `image-png`, a folder is `folder`, and a name the
- * theme does not carry falls back to the drawn generic. `AGORA_ICON_THEME` names another theme directory; it
- * is read at lookup time, and a path that resolves no icon simply leaves the drawing in charge.
+ * THE DEFAULT ART IS A THEME IN THE PREFIX, NAMED AND NOT VENDORED. `AGORA_ICON_DEFAULT_THEME` points at
+ * `share/icons/Flat-Remix-Accent`, which `demo/flat-remix-accent.sh` renders from the user's own Flat-Remix checkout
+ * (GPL-3.0, so nothing of it is committed or installed by this build). A type's freedesktop name is looked up there
+ * before anything is drawn — `image/png` is `image-png`, a folder is `folder` — and a name the theme does not carry
+ * falls back to the drawn generic. `AGORA_ICON_THEME` names another theme directory; it is read at lookup time, and a
+ * path that resolves no icon simply leaves the drawing in charge, which is what a machine without the theme gets.
  *
  * **AND THE UI'S SYMBOLS ARE A SECOND THEME, WHICH IS ASKED WHEN THE FIRST ONE MISSES.** `themes/Tabler` is every
- * outline symbol Tabler publishes — 5,203 of them, pre-rendered at 24, 48 and 96 pixels — installed beside Frost under
- * `share/icons`, and a name the theme in charge does not carry is looked up in its sibling `Tabler` before the answer is
- * no. That is what makes a symbol a SYSTEM RESOURCE: `AGIconCreateWithName(CFSTR("hammer"))` — and through it AppKit's
+ * outline symbol Tabler publishes — 5,203 of them, pre-rendered at 24, 48 and 96 pixels — installed beside the theme in
+ * charge under `share/icons`, and a name that theme does not carry is looked up in its sibling `Tabler` before the answer
+ * is no. That is what makes a symbol a SYSTEM RESOURCE: `AGIconCreateWithName(CFSTR("hammer"))` — and through it AppKit's
  * `+[NSImage imageNamed:]` — answers the vendored artwork in any application, instead of every toolbar compiling its own
- * copy of the pictures it wants. The two themes are not merged: Frost is places, file types and application art, Tabler
- * is the UI's verbs and switches, and the lookup keeps them apart while making both reachable.
+ * copy of the pictures it wants. The two are not merged: the theme in charge is places, file types and application art,
+ * Tabler is the UI's verbs and switches, and the lookup keeps them apart while making both reachable.
  */
 #ifndef ICONSERVICES_ICONSERVICES_H
 #define ICONSERVICES_ICONSERVICES_H
@@ -60,13 +62,14 @@ IconRef AGIconCreateWithType(CFStringRef uti);
  * `AGORA_ICON_THEME` names, then its sibling `Tabler` — and answers NULL for a name no theme carries, which leaves the
  * caller's own drawing in charge. AppKit's `+[NSImage imageNamed:]` is the caller that makes this a system resource.
  *
- * **AND A NAME MAY SAY WHICH THEME IT MEANS: `toolbar:folder-open`, `tabler:folder-open`, `frost:folder-open`.** Two
- * themes can carry one name and mean two different pictures — Frost's `folder-open` is a filled, coloured place folder and
- * Tabler's is an outline symbol — so the prefix settles it, matched without case against the theme directories beside the
- * one in charge. `toolbar:` is the ALIAS for the theme that holds the UI's symbols, which is what a band wants and what
- * lets the vendored set be replaced without every caller changing; `tabler:` and `frost:` name those themes directly. A
- * prefix that names no theme is not a guess: nothing answers, exactly as for a name no theme carries. AN UNADORNED NAME
- * ASKS THE THEME IN CHARGE — Frost, unless `AGORA_ICON_THEME` says otherwise — and then its sibling. */
+ * **AND A NAME MAY SAY WHICH THEME IT MEANS: `toolbar:folder-open`, `tabler:folder-open`, `flat-remix:folder-open`.**
+ * Two themes can carry one name and mean two different pictures — the desktop theme's `folder-open` is a filled,
+ * coloured place folder and Tabler's is an outline symbol — so the prefix settles it, matched without case against the
+ * theme directories beside the one in charge. `toolbar:` is the ALIAS for the theme that holds the UI's symbols, which is
+ * what a band wants and what lets the theme in charge be replaced without every caller changing; `tabler:` and a theme's
+ * own directory name (mapped through the aliases in `AGIconTheme.c`) name one directly. A prefix that names no theme is
+ * not a guess: nothing answers, exactly as for a name no theme carries. AN UNADORNED NAME ASKS THE THEME IN CHARGE — the
+ * default, unless `AGORA_ICON_THEME` says otherwise — and then its sibling. */
 IconRef AGIconCreateWithName(CFStringRef name);
 
 /* WRAP AN IMAGE THE CALLER ALREADY HAS. */
@@ -93,9 +96,8 @@ void AGIconRelease(IconRef icon);
 
 /* ---------------------------------------------------------------------------------------------------
  * AN AGORA-OWNED DOOR, named as Agora's and not as Apple's: Icon Services has no "replace the generic icon
- * for a type" entry point in its C API — the system's generic icons are resources. Agora's default art is
- * Frost, vendored rather than registered, but a caller that wants to substitute one for the process says so
- * here. `uti` and `icon` are retained.
+ * for a type" entry point in its C API — the system's generic icons are resources. Agora's default art is a named
+ * theme rather than a registered icon, but a caller that wants to substitute one for the process says so here. `uti` and `icon` are retained.
  * --------------------------------------------------------------------------------------------------- */
 void AGIconRegisterIconForType(CFStringRef uti, IconRef icon);
 

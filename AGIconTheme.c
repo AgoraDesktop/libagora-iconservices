@@ -5,15 +5,15 @@
  * SPDX-FileCopyrightText: 2026 Kyle J. Cardoza
  * SPDX-License-Identifier: LGPL-3.0-or-later
  *
- * THE THEME IS FROST, AND IT IS DATA RATHER THAN A DRAWING. Apple's generic icons are resources; this tree
- * used to draw its own because it shipped no art. Agora now vendors Frost (MIT, `themes/Frost`), whose PNGs
- * are the interim default: they are looked up here, and the drawn generics in `AGIconLoader.c` remain the
- * fallback for a checkout without the theme, a name Frost does not carry, or a process that points
- * `AGORA_ICON_THEME` somewhere empty.
+ * A THEME IS DATA RATHER THAN A DRAWING, AND THE DEFAULT ONE IS NAMED. Apple's generic icons are resources; this tree
+ * used to draw its own because it shipped no art. The default now names `share/icons/Flat-Remix-Accent` — rendered per
+ * machine by `demo/flat-remix-accent.sh`, and GPL-3.0, so it is not committed here. Its PNGs are looked up here, and the
+ * drawn generics in `AGIconLoader.c` remain the fallback for a machine without that theme, a name the theme does not
+ * carry, or a process that points `AGORA_ICON_THEME` somewhere empty.
  *
  * WHERE A THEME IS FOUND. `AGORA_ICON_THEME` names a directory, which is what a test or a caller that wants
- * another theme sets; otherwise `AGORA_ICON_DEFAULT_THEME`, which this component's build points at its
- * installed `share/icons/Frost`. A path that is not there resolves no icon, so the drawing takes over.
+ * another theme sets; otherwise `AGORA_ICON_DEFAULT_THEME`, which this component's build points at
+ * `share/icons/Flat-Remix-Accent`. A path that is not there resolves no icon, so the drawing takes over.
  *
  * A NAME IS THE FREEDESKTOP ICON NAME. A type's name comes from its preferred MIME tag with '/' turned into
  * '-': `image/png` is `image-png`, `application/vnd.oasis.opendocument.text` is its MIME with the same
@@ -50,13 +50,13 @@
 #define AG_THEME_NAME_MAX 512
 #define AG_THEME_CACHE_MAX 1024
 
-/* Every size Frost ships, at both scales. A size the theme lacks is simply a miss. */
+/* Every size a theme may ship, at both scales. A size the theme lacks is simply a miss. */
 static const int kThemeSizes[] = { 16, 22, 24, 32, 48, 64, 96, 128, 256 };
 
 /* The contexts a name can live in. `places` carries folders, `mimetypes` carries file types, `apps` carries application
  * art, and `actions` carries the UI's own symbols — the toolbar verbs and switches, which is where a vendored symbol set
  * belongs. A name is looked for in ALL of them because the mapping is a convention and not a promise: a theme may put
- * `folder` in any of them, and Tabler's `trash` sits in `actions` beside Frost's `places`. */
+ * `folder` in any of them, and Tabler's `trash` sits in `actions` beside a desktop theme's `places`. */
 static const char *const kThemeContexts[] = { "actions", "places", "mimetypes", "apps" };
 
 typedef struct {
@@ -123,11 +123,11 @@ static CGImageRef imageAtPath(const char *path)
 }
 
 /* **AND A THEME'S NEIGHBOURS ARE ASKED BEFORE THE ANSWER IS NO.** `AGORA_ICON_THEME` names the theme IN CHARGE, and the
- * art a desktop provides is not all in one directory: Frost is places, file types and application art, and Tabler is the
- * UI's symbols — both installed under `share/icons` by this component, and both this tree's. So a name the primary theme
- * does not carry is asked of its sibling `Tabler`, which is the whole of "Tabler beside Frost": a session that points
- * `AGORA_ICON_THEME` at `themes/Frost` in a checkout finds `hammer` in `themes/Tabler`, and an installed one finds it in
- * `share/icons/Tabler`. The reverse needs no rule — a theme named `Tabler` has no sibling to ask. */
+ * art a desktop provides is not all in one directory: the theme in charge is places, file types and application art, and
+ * Tabler is the UI's symbols — installed beside it under `share/icons`. So a name the primary theme does not carry is
+ * asked of its sibling `Tabler`, which is the whole of "Tabler beside the theme in charge": a session that points
+ * `AGORA_ICON_THEME` at a theme in a checkout finds `hammer` in `themes/Tabler` beside it, and an installed one finds it
+ * in `share/icons/Tabler`. The reverse needs no rule — a theme named `Tabler` has no sibling to ask. */
 static bool siblingThemeRoot(const char *root, char *out, size_t cap)
 {
 	const char *slash = strrchr(root, '/');
@@ -171,7 +171,7 @@ static IconRef loadThemeIconUncached(const char *root, const char *name)
 }
 
 /* **A NAME IS ASKED OF A THEME, AND THE CACHE REMEMBERS WHICH ONE ANSWERED.** The same string is a different picture in
- * each theme — `folder-open` is Frost's filled, coloured place folder and Tabler's outline symbol — so the cache key is
+ * each theme — `folder-open` is a desktop theme's filled, coloured place folder and Tabler's outline symbol — so the cache key is
  * the (theme directory, name) pair and not the name alone. */
 static IconRef themeIconFromRoot(const char *root, const char *name)
 {
@@ -207,7 +207,7 @@ static IconRef themeIconFromRoot(const char *root, const char *name)
 }
 
 /* **A THEME BY NAME, NEXT TO THE THEME IN CHARGE.** `<prefix>:<name>` says WHICH theme to ask, and the prefix is matched
- * against the directories beside the one `AGORA_ICON_THEME` names — `share/icons/Tabler`, `share/icons/Frost` — because
+ * against the directories beside the one `AGORA_ICON_THEME` names — `share/icons/Tabler`, `share/icons/Flat-Remix-Accent` — because
  * that is where a desktop's themes live. Matched without case, since a person typing `tabler:` means the same directory
  * as `Tabler`. Answers false when no directory has that name, in which case the caller treats the whole string as an
  * ordinary name (and misses, which is the same silence a name no theme carries gets). */
@@ -269,9 +269,9 @@ static const char *fn_theme_alias(const char *prefix)
 
 /* **AND THE PREFIXED FORM: `tabler:folder-open`, `frost:folder-open`, `toolbar:file-plus`.** The prefix names the theme
  * and the rest is the name in it, so a caller that means a SYMBOL says so instead of relying on an order — MEASURED,
- * Forge's Open row drew Frost's solid place folder in a template band because `folder-open` exists in both themes and
+ * Forge's Open row drew a solid place folder in a template band because `folder-open` exists in both themes and
  * the unprefixed order answered the theme in charge first. A prefix that names no theme is not a guess: nothing answers,
- * which is the same silence a name no theme carries gets. AN UNADORNED NAME ASKS THE THEME IN CHARGE — Frost, unless a
+ * which is the same silence a name no theme carries gets. AN UNADORNED NAME ASKS THE THEME IN CHARGE — the default, unless a
  * person named another through `AGORA_ICON_THEME` — and then its sibling, which is the order a place and a type want. */
 static IconRef themeIconSpecified(const char *spec)
 {
@@ -318,7 +318,7 @@ static bool iconNameFromMIME(CFStringRef mime, char *out, size_t cap)
 	return o > 0;
 }
 
-/* The generic for a type's category, in Frost's names. */
+/* The generic for a type's category, in the freedesktop names. */
 static const char *genericNameForType(CFStringRef uti)
 {
 	if (uti != NULL) {

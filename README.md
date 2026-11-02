@@ -32,14 +32,17 @@ $ readelf -d build/libagora-iconservices.so | grep NEEDED
 **generic**; it carries several **representations** at different sizes and a caller asks for the one for the
 size it is about to draw.
 
-## The interim default icon set: Frost
+## The default icon set: Flat-Remix-Accent, rendered rather than vendored
 
-**Agora's default art is Frost**, a frosted-glass icon theme by Sayantan, vendored at
-`themes/Frost` from upstream tag **v0.3.1** (MIT). It covers folders, 134 file types, applications and the
-places icons a file manager asks for. The PNGs are the theme's own built release — its SVG sources are not
-vendored, because Agora has no SVG renderer and does not need one to read the representations Core Graphics
-already decodes. `themes/PROVENANCE.md` records the tag, commit, archive checksum and the exact scope of the
-copy; `themes/Frost/LICENSE` travels with the art.
+**Agora's default art is Flat-Remix**, in the accent-tinted variant `demo/flat-remix-accent.sh` renders from the
+upstream checkout: folders, file types and the places icons a file manager asks for, with the folder tones swapped to
+`NSColor`'s `+cg_accentColor`. It is **GPL-3.0**, so neither its sources nor the PNGs rendered from them are committed
+or installed by this component — the compiled default (`AGORA_ICON_DEFAULT_THEME`) simply NAMES
+`share/icons/Flat-Remix-Accent`, and a machine without it gets the drawn generics in `AGIconLoader.c`.
+
+The theme this component used to vendor — Frost (MIT, v0.3.1) — is gone, along with its 41 MB of PNGs. `themes/` now
+holds one theme, `Tabler`, the UI's outline symbols, which installs beside whatever theme is in charge and answers a name
+that theme does not carry.
 
 A type's name is its preferred MIME tag with `/` turned into `-` (`image/png` → `image-png`); a type with no
 MIME tag falls back to the generic for its category (`text-x-generic`, `folder`, `application-x-executable`).
@@ -85,8 +88,9 @@ fail**:
   RLE/ARGB forms (`is32`, `il32`, `ih32`, `it32`, `ic04`, `ic05`) are named and not read yet, so an `.icns`
   holding only those yields no icon and the caller falls back to the generic. (libicns is the named LGPL
   fallback if this ever becomes worth linking.)
-- **No SVG.** `nanosvg` (Zlib) is the named permissive engine; nothing needs it. Frost is vendored as its
-  built PNGs for the same reason — the SVG sources are upstream's, not this tree's.
+- **No SVG.** `nanosvg` (Zlib) is the named permissive engine; nothing needs it. The one theme this component still
+  vendors, `Tabler`, is committed as its built PNGs for the same reason — the SVG sources are upstream's, not this
+  tree's.
 - **No asset catalogues** (`CFBundleIconName`); only `CFBundleIconFile`.
 - **No writing `.icns`**, and no custom-icon store. Custom icons are a Workspace metadata concern
   (`../WORKSPACE-PLAN.md` §5.4), not Icon Services'.
@@ -99,11 +103,13 @@ cmake -S . -B build -DCMAKE_C_COMPILER=/usr/bin/clang-19 \
       -DCMAKE_PREFIX_PATH=../build-prefix -DCMAKE_INSTALL_PREFIX=../build-prefix
 cmake --build build
 cd build && ctest --output-on-failure
-cmake --install .      # installs share/icons/Frost, which the compiled default points at
+cmake --install .      # installs share/icons/Tabler, the one theme this component ships
 ```
 
-`AGORA_ICON_THEME=/path/to/ATheme` overrides the installed default at run time. The suite sets it to the
-checkout's `themes/Frost`, so it measures the vendored art without needing an install first.
+`AGORA_ICON_THEME=/path/to/ATheme` overrides the installed default at run time; without it the compiled default names
+`share/icons/Flat-Remix-Accent`, which `demo/flat-remix-accent.sh` renders into the prefix. **The suite needs neither**:
+it composes a small theme of its own — an `index.theme` and a few flat-coloured PNGs, with the checkout's `Tabler`
+linked beside it — so what it measures is the lookup rather than anybody's art.
 
 ## Licence
 

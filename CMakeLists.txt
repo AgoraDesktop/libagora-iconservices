@@ -13,8 +13,9 @@
 # already has.
 #
 # THE MODEL IS APPLE'S AND NOTHING FOREIGN IS READ. An item's icon is its application's or its type's; the
-# default art is the vendored Frost theme (MIT, `themes/Frost`), the drawn generics are the fallback, and the
-# `.icns` reader is in-tree. See README.md and themes/PROVENANCE.md.
+# default art is a theme in the install prefix, NAMED by this build and rendered per machine (GPL-3.0, so not
+# vendored), the drawn generics are the fallback, and the `.icns` reader is in-tree. See README.md and
+# themes/PROVENANCE.md.
 #
 #===----------------------------------------------------------------------===#
 
@@ -62,9 +63,15 @@ set_target_properties(IconServices PROPERTIES OUTPUT_NAME agora-iconservices)
 
 target_compile_options(IconServices PRIVATE -fconstant-cfstrings)
 
-# THE VENDORED THEME'S INSTALLED LOCATION. `AGORA_ICON_THEME` overrides it at run time; this is the default
-# an installed Agora resolves, so a checkout built into a prefix and installed finds its own Frost there.
-set(AGORA_ICON_DEFAULT_THEME "${CMAKE_INSTALL_FULL_DATADIR}/icons/Frost")
+# **THE DEFAULT THEME, AND THE ONE THIS COMPONENT DOES NOT OWN.** `AGORA_ICON_THEME` overrides it at run time; this is
+# what an installed Agora resolves otherwise, and it names FLAT-REMIX-ACCENT — the theme `demo/flat-remix-accent.sh`
+# renders into the prefix from the user's own Flat-Remix checkout, with its folders in `+cg_accentColor`.
+#
+# It is GPL-3, so neither its sources nor the pixels rendered from them are committed or installed BY THIS BUILD: the
+# default names a theme that has to be rendered locally (or dropped in by hand). A machine without it resolves no theme
+# icon and falls back to the drawn generics in `AGIconLoader.c`, which is the same answer a checkout with no theme has
+# always had. The pointer's theme, the AppKit's chrome and Tabler's symbols are unaffected: those are installed.
+set(AGORA_ICON_DEFAULT_THEME "${CMAKE_INSTALL_FULL_DATADIR}/icons/Flat-Remix-Accent")
 target_compile_definitions(IconServices PRIVATE
     AGORA_ICON_DEFAULT_THEME="${AGORA_ICON_DEFAULT_THEME}")
 
@@ -95,17 +102,16 @@ endif()
 install(DIRECTORY . DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/IconServices
         FILES_MATCHING PATTERN "*.h" PATTERN "*_internal.h" EXCLUDE)
 
-# THE INTERIM DEFAULT ICON SET IS FROST, VENDORED. It installs as an ordinary freedesktop icon theme, so
-# another application that reads `share/icons` sees the same art, and this component's compiled default
-# points at it. Its licence and provenance travel with it.
-install(DIRECTORY themes/Frost DESTINATION ${CMAKE_INSTALL_DATADIR}/icons
-        PATTERN "icon-theme.cache" EXCLUDE)
-
-# **AND THE UI'S SYMBOLS BESIDE IT.** Tabler is the other half of this tree's art — 5,203 outline symbols rendered at 24,
-# 48 and 96 pixels — and it installs the same way, as an ordinary theme in `share/icons`, so the lookup that names
-# `user-home` in Frost names `hammer` here. `source/` holds the SVGs the pixels came from and is NOT installed: the
-# pictures are what a running system needs, and a copy of every SVG on the disk would double a theme for the sake of a
-# regeneration nobody does there.
+# **THE UI'S SYMBOLS INSTALL, AND THEY ARE THE ONLY THEME THIS COMPONENT SHIPS.** Tabler — 5,203 outline symbols
+# rendered at 24, 48 and 96 pixels — goes in as an ordinary theme in `share/icons`, so the sibling rule finds it beside
+# whatever theme is in charge: a session that names `Flat-Remix-Accent` finds `hammer` in `share/icons/Tabler`, and a
+# checkout that names a theme in the tree finds it in `themes/Tabler`. `source/` holds the SVGs the pixels came from and
+# is NOT installed: the pictures are what a running system needs, and a copy of every SVG on the disk would double a
+# theme for the sake of a regeneration nobody does there.
+#
+# **NO PLACES OR FILE-TYPE ART IS VENDORED ANY MORE.** The Frost theme this component used to carry and install was
+# replaced by the Flat-Remix the desktop now names by default; see the default above for why that one is rendered rather
+# than installed.
 install(DIRECTORY themes/Tabler DESTINATION ${CMAKE_INSTALL_DATADIR}/icons
         PATTERN "source" EXCLUDE)
 install(FILES themes/PROVENANCE.md

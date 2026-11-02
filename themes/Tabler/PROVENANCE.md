@@ -13,9 +13,9 @@
 | `source/` | the 5,203 SVGs the pixels came from, and **not installed** |
 
 Each PNG is black ink on transparency, which is what a *template* image is: the drawing side inks it, so a disabled
-toolbar item is the grey of its own label. The theme is installed as an ordinary one under `share/icons/Tabler`, beside
-`Frost`, and `libagora-iconservices` looks a name it cannot find in the theme in charge up in its sibling `Tabler` — that
-is what makes `[NSImage imageNamed:@"hammer"]` work in a session whose theme is Frost.
+toolbar item is the grey of its own label. The theme is installed as an ordinary one under `share/icons/Tabler`, beside whatever
+theme is in charge, and `libagora-iconservices` looks a name it cannot find in that theme up in its sibling `Tabler` —
+that is what makes `[NSImage imageNamed:@"hammer"]` work in a session whose theme is the rendered Flat-Remix.
 
 **Why pre-rendered and not rendered by the build.** Forge learned this the hard way and this component inherits the
 lesson: art produced by a *build step* is a property of how a project was built, so a project built by another program

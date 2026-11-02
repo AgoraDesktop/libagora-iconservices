@@ -16,10 +16,10 @@
  * those yields no icon and the caller falls back to the generic. The PNG entries are identified BY THE PNG
  * SIGNATURE rather than by a type table, so a container that puts PNG in an unexpected slot still works.
  *
- * THE GENERICS ARE DRAWN, NOT SHIPPED. Apple's generic icons are resources; Agora's default art is now the
- * vendored Frost theme (`AGIconTheme.c`), and this file's document, folder, application, image, text, movie,
- * audio and archive drawings are the fallback: a checkout without the theme, a process that points
- * `AGORA_ICON_THEME` somewhere else, or a name the theme does not carry. They are drawn with Core Graphics at
+ * THE GENERICS ARE DRAWN, NOT SHIPPED. Apple's generic icons are resources; Agora's default art is a THEME named by
+ * `AGIconTheme.c` and rendered per machine, and this file's document, folder, application, image, text, movie, audio and
+ * archive drawings are the fallback: a machine without that theme, a process that points `AGORA_ICON_THEME` somewhere
+ * else, or a name the theme does not carry. They are drawn with Core Graphics at
  * a fixed 256 points — deterministic and reviewable, with no lookup needed and no binary asset of their own.
  */
 #include "IconServices_internal.h"
@@ -260,7 +260,7 @@ IconRef AGIconCreateWithType(CFStringRef uti)
 	IconRef over = overrideForType(uti);
 	if (over != NULL) return AGIconRetain(over);
 
-	/* THE VENDORED THEME FIRST, THE DRAWING SECOND. Frost's names are the freedesktop ones; a type it does
+	/* THE THEME FIRST, THE DRAWING SECOND. A theme's names are the freedesktop ones; a type it does
 	 * not carry falls through to the generic that this component draws. */
 	CFStringRef type = uti != NULL ? uti : kUTTypeData;
 	IconRef themed = _AGIconCreateWithThemeType(type);
@@ -274,7 +274,7 @@ IconRef AGIconCreateWithType(CFStringRef uti)
 }
 
 /* The theme's place icon for a directory: the well-known folders get their own art and everything else is a
- * folder. The names are Frost's and the comparison is the path the URL already resolved to. */
+ * folder. The names are the freedesktop ones and the comparison is the path the URL already resolved to. */
 static const char *placeNameForPath(const char *path)
 {
 	const char *home = getenv("HOME");

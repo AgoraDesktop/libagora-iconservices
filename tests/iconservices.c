@@ -13,8 +13,10 @@
  *   * a text type and a folder get DIFFERENT icons, so a type really picks its own;
  *   * a badge composites over a base without changing its size;
  *   * an override registered for a type wins;
- *   * and the vendored Frost theme is the default: a type resolves through it at both scales, while pointing
- *     `AGORA_ICON_THEME` at an empty directory brings the drawn generic back.
+ *   * and a theme is the default: a type resolves through one at both scales, while pointing `AGORA_ICON_THEME` at an
+ *     empty directory brings the drawn generic back. THE THEME IS COMPOSED BY THIS FILE — an `index.theme` and a few
+ *     flat-coloured PNGs, with the checkout's `Tabler` linked beside it — so the suite measures the lookup and not
+ *     anybody's art, and the component ships none.
  *
  * THE FIXTURES ARE NOT BINARY FILES IN THE TREE. Two solid-colour PNGs are embedded as base64 and the test
  * composes an `.icns` container around them, so the reader is measured against a container this file built.
@@ -25,6 +27,7 @@
 #include <LaunchServices/UTType.h>
 
 #include <CoreGraphics/CGBitmapContext.h>
+#include <CoreGraphics/CGImageDestination.h>
 #include <CoreGraphics/CGColorSpace.h>
 #include <CoreGraphics/CGContext.h>
 
@@ -156,6 +159,62 @@ static bool imageHasColour(CGImageRef img, int r, int g, int b, int tol)
 	return found;
 }
 
+/* ---- composing an icon theme, so the suite needs no art of its own ---------------------------- */
+
+/* A solid rectangle, at the size asked. It is a THEME's picture for these checks, and a colour is the point: the entry
+ * that answered a request is named by what came back, not by comparing against a picture committed to the tree. */
+static CGImageRef solidImage(size_t w, size_t h, int r, int g, int b)
+{
+	CGContextRef ctx = rasterContext(w, h);
+	CGImageRef image;
+
+	if (ctx == NULL) return NULL;
+	CGContextSetRGBFillColor(ctx, (CGFloat)r / 255.0, (CGFloat)g / 255.0, (CGFloat)b / 255.0, 1.0);
+	CGContextFillRect(ctx, CGRectMake(0, 0, (CGFloat)w, (CGFloat)h));
+	image = CGBitmapContextCreateImage(ctx);
+	CGContextRelease(ctx);
+	return image;
+}
+
+/* The picture as PNG bytes, through the tree's own encoder. */
+static CFDataRef pngData(CGImageRef image)
+{
+	CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
+	CFStringRef type = CFStringCreateWithCString(NULL, "public.png", kCFStringEncodingUTF8);
+	CGImageDestinationRef dest = CGImageDestinationCreateWithData(data, type, 1, NULL);
+	CFDataRef answer;
+
+	CFRelease(type);
+	if (dest == NULL) {
+		CFRelease(data);
+		return NULL;
+	}
+	CGImageDestinationAddImage(dest, image, NULL);
+	(void)CGImageDestinationFinalize(dest);
+	CFRelease(dest);
+	answer = CFDataCreateCopy(NULL, data);
+	CFRelease(data);
+	return answer;
+}
+
+/* One entry of the composed theme: `<theme>/<subdir>/<name>.png`, made on the way. */
+static bool writeThemeImage(const char *theme, const char *subdir, const char *name, CGImageRef image)
+{
+	char dir[4096], path[4096], command[4096];
+	CFDataRef bytes;
+	bool ok;
+
+	snprintf(dir, sizeof dir, "%s/%s", theme, subdir);
+	snprintf(command, sizeof command, "mkdir -p '%s'", dir);
+	if (system(command) != 0) return false;
+	snprintf(path, sizeof path, "%s/%s.png", dir, name);
+	bytes = pngData(image);
+	if (bytes == NULL) return false;
+	ok = writeFile(path, bytes);
+	CFRelease(bytes);
+	return ok;
+}
+
 static bool imagesDiffer(CGImageRef a, CGImageRef b)
 {
 	const size_t S = 64;
@@ -193,8 +252,23 @@ int main(void)
 	bool wrote = writeFile(icnsPath, icns);
 	CFRelease(icns);
 
+	/* **THE THEME THE SUITE MEASURES IS ONE IT COMPOSED.** It lives in its own `icons/` directory with the checkout's
+	 * `Tabler` linked beside it, because the sibling rule is part of what is measured: a name the theme in charge does
+	 * not carry is asked of `Tabler` next door. Nothing here is installed, and the component ships no art. */
+	char themePath[4096], iconsPath[4096], tablerLink[4096];
+	snprintf(iconsPath, sizeof iconsPath, "%s/icons", root);
+	snprintf(themePath, sizeof themePath, "%s/Composed", iconsPath);
+	snprintf(tablerLink, sizeof tablerLink, "%s/Tabler", iconsPath);
+	{
+		char command[4096];
+
+		snprintf(command, sizeof command, "mkdir -p '%s'", themePath);
+		if (system(command) != 0) { fprintf(stderr, "theme directory failed\n"); return 1; }
+		(void)symlink(THEMES_DIR "/Tabler", tablerLink);
+	}
+
+	setenv("AGORA_ICON_THEME", themePath, 1);
 	AGIconReset();
-	setenv("AGORA_ICON_THEME", THEME_DIR, 1);
 	printf("iconservices: %s\n", root);
 	check(wrote, "the application's .icns was written into its Resources");
 
@@ -290,24 +364,71 @@ int main(void)
 	check(badged128 != NULL && i128 != NULL && imagesDiffer(badged128, i128),
 	      "and it differs from the unbadged icon");
 
-	/* ---- 4b. the vendored theme, and the drawing it replaces ----------------------------- */
-	check(access(THEME_DIR "/index.theme", R_OK) == 0,
-	      "the vendored Frost theme is in the checkout");
-	setenv("AGORA_ICON_THEME", THEME_DIR, 1);
+	/* ---- 4b. a theme composed by this file, and the drawing it replaces ------------------- */
+
+	/* **THE THEME IS COMPOSED HERE, AND IT IS WHY THIS SUITE OWNS NO ART.** The component used to vendor one theme and
+	 * measure against its pixels; the theme a session actually runs is installed beside the prefix or rendered from an
+	 * upstream checkout, so what belongs in a test is the MECHANISM — a name and a size resolved to the representation
+	 * that carries them, and the drawn generic when nothing does. Each entry here is one flat colour, so the entry that
+	 * answered a request is named by what came back. */
+	char indexPath[4096];
+	snprintf(indexPath, sizeof indexPath, "%s/index.theme", themePath);
+	{
+		CGImageRef art32 = solidImage(32, 32, 220, 60, 60);
+		CGImageRef art512 = solidImage(512, 512, 60, 90, 210);
+		CGImageRef artPNG = solidImage(64, 64, 40, 170, 90);
+		CFDataRef index = (CFDataRef)CFStringCreateExternalRepresentation(NULL,
+			CFSTR("[Icon Theme]\nName=Composed\n"), kCFStringEncodingUTF8, 0);
+
+		check(writeFile(indexPath, index), "the composed theme carries an index.theme");
+		CFRelease(index);
+		check(writeThemeImage(themePath, "32x32/places", "folder", art32),
+		      "a folder at 32 pixels is in it");
+		check(writeThemeImage(themePath, "256x256@2x/places", "folder", art512),
+		      "with a @2x representation at 512");
+		check(writeThemeImage(themePath, "64x64/mimetypes", "image-png", artPNG),
+		      "and a PNG type's own picture");
+		/* **THE NAMES THE REST OF THE SUITE ASKS FOR.** `image-x-generic` is the same picture as the PNG's — which is
+		 * how a theme that draws one bitmap for a family says it — and the two place names are what the sibling rule and
+		 * the theme prefix are measured against: `folder-open` must be a DIFFERENT picture from Tabler's outline symbol
+		 * at a different size, so "the theme in charge wins" is visible. */
+		check(writeThemeImage(themePath, "64x64/mimetypes", "image-x-generic", artPNG),
+		      "and the image generic it belongs to");
+		{
+			CGImageRef place = solidImage(48, 48, 60, 170, 90);
+			CGImageRef open = solidImage(48, 48, 200, 150, 40);
+
+			check(writeThemeImage(themePath, "48x48/places", "user-desktop", place),
+			      "a place is one of its names");
+			check(writeThemeImage(themePath, "48x48/places", "folder-open", open),
+			      "and so is a folder-open, drawn unlike the symbol theme's");
+			CGImageRelease(place);
+			CGImageRelease(open);
+		}
+		CGImageRelease(art32);
+		CGImageRelease(art512);
+		CGImageRelease(artPNG);
+	}
+
+	setenv("AGORA_ICON_THEME", themePath, 1);
 	AGIconReset();
 
-	IconRef frostFolder = AGIconCreateWithType(kUTTypeFolder);
-	CGImageRef frost32 = frostFolder != NULL ? AGIconCopyImage(frostFolder, CGSizeMake(32, 32)) : NULL;
-	CGImageRef frost512 = frostFolder != NULL ? AGIconCopyImage(frostFolder, CGSizeMake(512, 512)) : NULL;
-	check(frostFolder != NULL && frost32 != NULL && CGImageGetWidth(frost32) == 32,
+	IconRef themeFolder = AGIconCreateWithType(kUTTypeFolder);
+	CGImageRef theme32 = themeFolder != NULL ? AGIconCopyImage(themeFolder, CGSizeMake(32, 32)) : NULL;
+	CGImageRef theme512 = themeFolder != NULL ? AGIconCopyImage(themeFolder, CGSizeMake(512, 512)) : NULL;
+	check(themeFolder != NULL && theme32 != NULL && CGImageGetWidth(theme32) == 32,
 	      "a type resolves through the theme at the size asked");
-	check(frost512 != NULL && CGImageGetWidth(frost512) == 512,
+	check(theme32 != NULL && imageHasColour(theme32, 220, 60, 60, 8),
+	      "and it is that size's picture, not another size's");
+	check(theme512 != NULL && CGImageGetWidth(theme512) == 512,
 	      "and the theme's @2x representation serves a 512-pixel request");
+	check(theme512 != NULL && imageHasColour(theme512, 60, 90, 210, 8),
+	      "which is the @2x art rather than a scaled-up 32");
 
-	IconRef frostPNG = AGIconCreateWithType(kUTTypePNG);
-	CGImageRef frostPNG64 = frostPNG != NULL ? AGIconCopyImage(frostPNG, CGSizeMake(64, 64)) : NULL;
-	check(frostPNG64 != NULL && !imagesDiffer(frostPNG64, image64),
-	      "a PNG gets its own theme icon, not the image generic");
+	IconRef themePNG = AGIconCreateWithType(kUTTypePNG);
+	CGImageRef themePNG64 = themePNG != NULL ? AGIconCopyImage(themePNG, CGSizeMake(64, 64)) : NULL;
+	check(themePNG64 != NULL && CGImageGetWidth(themePNG64) == 64,
+	      "a PNG type resolves through the theme too");
 
 	/* THE THEME IS A DEFAULT AND NOT A FLOOR: point the process at a directory that carries none, and the
 	 * drawing is what a type gets. (Unsetting the variable is not enough once the compiled default is installed,
@@ -319,17 +440,29 @@ int main(void)
 	AGIconReset();
 	IconRef drawnFolder = AGIconCreateWithType(kUTTypeFolder);
 	CGImageRef drawnFolder64 = drawnFolder != NULL ? AGIconCopyImage(drawnFolder, CGSizeMake(64, 64)) : NULL;
-	CGSize drawnBest = AGIconGetBestSize(drawnFolder), themedBest = AGIconGetBestSize(frostFolder);
+	CGSize drawnBest = AGIconGetBestSize(drawnFolder), themedBest = AGIconGetBestSize(themeFolder);
 	check(drawnFolder64 != NULL && folder64 != NULL && drawnBest.width == 256 && themedBest.width == 512,
 	      "an empty theme directory leaves the drawn 256-point generic, not the theme's @2x art");
 	check(drawnFolder64 != NULL && folder64 != NULL && imagesDiffer(drawnFolder64, folder64),
 	      "and its pixels are not the theme's folder");
+	/* **AND A TYPE GETS THE THEME'S PICTURE RATHER THAN THE DRAWN GENERIC** — measured while no theme is in charge, so
+	 * the comparison is against the drawing and not against the theme twice. */
+	{
+		IconRef drawnPNG = AGIconCreateWithType(kUTTypePNG);
+		CGImageRef drawnPNG64 = drawnPNG != NULL ? AGIconCopyImage(drawnPNG, CGSizeMake(64, 64)) : NULL;
 
-	setenv("AGORA_ICON_THEME", THEME_DIR, 1);
+		check(drawnPNG64 != NULL && themePNG64 != NULL && imagesDiffer(drawnPNG64, themePNG64),
+		      "a PNG gets its own theme icon, not the image generic");
+		if (drawnPNG64 != NULL) CGImageRelease(drawnPNG64);
+		AGIconRelease(drawnPNG);
+	}
+
+	setenv("AGORA_ICON_THEME", themePath, 1);
 	AGIconReset();
-	IconRef frostAgain = AGIconCreateWithType(kUTTypeFolder);
-	CGImageRef frostAgain64 = frostAgain != NULL ? AGIconCopyImage(frostAgain, CGSizeMake(64, 64)) : NULL;
-	check(frostAgain64 != NULL && folder64 != NULL && !imagesDiffer(frostAgain64, folder64),
+	IconRef themeAgain = AGIconCreateWithType(kUTTypeFolder);
+	CGImageRef themeAgain64 = themeAgain != NULL ? AGIconCopyImage(themeAgain, CGSizeMake(64, 64)) : NULL;
+	check(themeAgain64 != NULL && folder64 != NULL
+	      && imageHasColour(themeAgain64, 60, 90, 210, 8),
 	      "and pointing at the theme again resolves the same art");
 
 	/* ---- 4c. a well-known place gets its own art ----------------------------------------- */
@@ -349,10 +482,11 @@ int main(void)
 	if (hadHome) setenv("HOME", savedHome, 1); else unsetenv("HOME");
 	AGIconReset();
 
-	/* ---- 4d. **A SYMBOL IS ASKED FOR BY NAME, AND IT LIVES IN THE THEME BESIDE THIS ONE.** Frost is places, file
-	 * types and application art; the UI's symbols are Tabler, installed as its own theme. `AGORA_ICON_THEME` here names
-	 * Frost, so `hammer` can only be answered by the SIBLING lookup — which is the whole of "Tabler beside Frost", and
-	 * what makes `[NSImage imageNamed:@"hammer"]` a system resource rather than nine tables compiled into one program. */
+	/* ---- 4d. **A SYMBOL IS ASKED FOR BY NAME, AND IT LIVES IN THE THEME BESIDE THIS ONE.** The theme in charge is
+	 * places, file types and application art; the UI's symbols are Tabler, installed as its own theme. `AGORA_ICON_THEME`
+	 * here names the composed theme, so `hammer` can only be answered by the SIBLING lookup — which is the whole of
+	 * "Tabler beside the theme in charge", and what makes `[NSImage imageNamed:@"hammer"]` a system resource rather than
+	 * nine tables compiled into one program. */
 	{
 		IconRef symbol = AGIconCreateWithName(CFSTR("hammer"));
 		CGSize natural = AGIconGetNaturalSize(symbol);
@@ -369,7 +503,7 @@ int main(void)
 		AGIconRelease(symbol);
 
 		/* A NAME THE THEME IN CHARGE CARRIES IS STILL FOUND IN IT FIRST, so the fallback adds nothing to the cost of
-		 * the ordinary lookups: `folder` is Frost's, and `user-desktop` is a place. */
+		 * the ordinary lookups: `folder` and `user-desktop` are the composed theme's. */
 		IconRef place = AGIconCreateWithName(CFSTR("user-desktop"));
 		CGSize placeNatural = AGIconGetNaturalSize(place);
 
@@ -384,7 +518,7 @@ int main(void)
 		      "nor one no theme carries, which leaves the caller's own drawing in charge");
 
 		/* **AND A NAME MAY SAY WHICH THEME IT MEANS, WHICH IS WHAT A TOOLBAR USES.** `folder-open` is a name BOTH themes
-		 * carry — Frost's filled, coloured place folder and Tabler's outline symbol — so the prefix settles it, and
+		 * carry — a filled, coloured place folder and Tabler's outline symbol — so the prefix settles it, and
 		 * `toolbar:` is the alias for whichever theme holds the UI's symbols. Unadorned names still ask the theme in charge
 		 * (Frost here), which is what a file view wants. MEASURED: Forge's Open row drew Frost's solid folder in a template
 		 * band until it asked `toolbar:folder-open`. */
@@ -430,10 +564,10 @@ int main(void)
 	      "and it is no longer the built-in generic");
 
 	/* ---- cleanup ------------------------------------------------------------------------- */
-	CGImageRelease(frost32); CGImageRelease(frost512); CGImageRelease(frostPNG64);
-	CGImageRelease(drawnFolder64); CGImageRelease(frostAgain64);
+	CGImageRelease(theme32); CGImageRelease(theme512); CGImageRelease(themePNG64);
+	CGImageRelease(drawnFolder64); CGImageRelease(themeAgain64);
 	CGImageRelease(desktop64);
-	AGIconRelease(frostFolder); AGIconRelease(frostPNG); AGIconRelease(drawnFolder); AGIconRelease(frostAgain);
+	AGIconRelease(themeFolder); AGIconRelease(themePNG); AGIconRelease(drawnFolder); AGIconRelease(themeAgain);
 	AGIconRelease(desktopIcon);
 	CFRelease(desktopURL);
 	CGImageRelease(after64); CGImageRelease(badged128); CGImageRelease(viaURL64);
